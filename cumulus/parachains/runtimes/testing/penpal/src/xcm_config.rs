@@ -1,18 +1,30 @@
-// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Cumulus.
+// SPDX-License-Identifier: Unlicense
 
-// Cumulus is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// This is free and unencumbered software released into the public domain.
 
-// Cumulus is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
+// Anyone is free to copy, modify, publish, use, compile, sell, or
+// distribute this software, either in source code form or as a compiled
+// binary, for any purpose, commercial or non-commercial, and by any
+// means.
 
-// You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// In jurisdictions that recognize copyright laws, the author or authors
+// of this software dedicate any and all copyright interest in the
+// software to the public domain. We make this dedication for the benefit
+// of the public at large and to the detriment of our heirs and
+// successors. We intend this dedication to be an overt act of
+// relinquishment in perpetuity of all present and future rights to this
+// software under copyright law.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+// OTHER DEALINGS IN THE SOFTWARE.
+
+// For more information, please refer to <http://unlicense.org/>
 
 //! Holds the XCM specific configuration that would otherwise be in lib.rs
 //!
@@ -24,15 +36,19 @@
 //! soon.
 use super::{
 	AccountId, AllPalletsWithSystem, AssetId as AssetIdPalletAssets, Assets, Authorship, Balance,
-	Balances, ForeignAssets, ForeignAssetsInstance, NonZeroIssuance, ParachainInfo,
-	ParachainSystem, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee,
-	XcmpQueue,
+	Balances, CollatorSelection, ForeignAssets, ForeignAssetsInstance, NonZeroIssuance,
+	ParachainInfo, ParachainSystem, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
+	WeightToFee, XcmpQueue,
 };
 use crate::{BaseDeliveryFee, FeeAssetId, TransactionByteFee};
+use assets_common::TrustBackedAssetsAsLocation;
 use core::marker::PhantomData;
 use frame_support::{
 	parameter_types,
-	traits::{ConstU32, Contains, ContainsPair, Everything, EverythingBut, Get, Nothing},
+	traits::{
+		tokens::imbalance::ResolveAssetTo, ConstU32, Contains, ContainsPair, Equals, Everything,
+		EverythingBut, Get, Nothing, PalletInfoAccess,
+	},
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
@@ -40,28 +56,42 @@ use pallet_xcm::XcmPassthrough;
 use parachains_common::{xcm_config::AssetFeeAsExistentialDepositMultiplier, TREASURY_PALLET_ID};
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::{impls::ToAuthor, xcm_sender::ExponentialPrice};
-use sp_runtime::traits::{AccountIdConversion, ConvertInto};
-use xcm::latest::prelude::*;
+use snowbridge_router_primitives::inbound::EthereumLocationsConverterFor;
+use sp_runtime::traits::{AccountIdConversion, ConvertInto, Identity, TryConvertInto};
+use xcm::latest::{prelude::*, WESTEND_GENESIS_HASH};
 use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, AsPrefixedGeneralIndex, ConvertedConcreteId, EnsureXcmOrigin,
-	FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter, FungiblesAdapter, IsConcrete,
+	AccountId32Aliases, AliasOriginRootUsingFilter, AllowHrmpNotificationsFromRelayChain,
+	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	AsPrefixedGeneralIndex, ConvertedConcreteId, DescribeAllTerminal, DescribeFamily,
+	EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter,
+	FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription, IsConcrete,
 	LocalMint, NativeAsset, NoChecking, ParentAsSuperuser, ParentIsPreset, RelayChainAsNative,
-	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, StartsWith, TakeWeightCredit,
-	TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
-	XcmFeeManagerFromComponents, XcmFeeToAccount,
+	SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
+	SignedAccountId32AsNative, SignedToAccountId32, SingleAssetExchangeAdapter,
+	SovereignSignedViaLocation, StartsWith, TakeWeightCredit, TrailingSetTopicAsId,
+	UsingComponents, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
 use xcm_executor::{traits::JustTry, XcmExecutor};
 
 parameter_types! {
 	pub const RelayLocation: Location = Location::parent();
-	// Local native currency which is stored in `pallet_balances``
+	// Local native currency which is stored in `pallet_balances`
 	pub const PenpalNativeCurrency: Location = Location::here();
-	pub const RelayNetwork: Option<NetworkId> = None;
+	// The Penpal runtime is utilized for testing with various environment setups.
+	// This storage item allows us to customize the `NetworkId` where Penpal is deployed.
+	// By default, it is set to `Westend Network` and can be changed using `System::set_storage`.
+	pub storage RelayNetworkId: NetworkId = NetworkId::ByGenesis(WESTEND_GENESIS_HASH);
+	pub RelayNetwork: Option<NetworkId> = Some(RelayNetworkId::get());
 	pub RelayChainOrigin: RuntimeOrigin = cumulus_pallet_xcm::Origin::Relay.into();
-	pub UniversalLocation: InteriorLocation = [Parachain(ParachainInfo::parachain_id().into())].into();
+	pub UniversalLocation: InteriorLocation = [
+		GlobalConsensus(RelayNetworkId::get()),
+		Parachain(ParachainInfo::parachain_id().into())
+	].into();
 	pub TreasuryAccount: AccountId = TREASURY_PALLET_ID.into_account_truncating();
+	pub StakingPot: AccountId = CollatorSelection::account_id();
+	pub TrustBackedAssetsPalletIndex: u8 = <Assets as PalletInfoAccess>::index() as u8;
+	pub TrustBackedAssetsPalletLocation: Location =
+		PalletInstance(TrustBackedAssetsPalletIndex::get()).into();
 }
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`. This is used
@@ -74,10 +104,18 @@ pub type LocationToAccountId = (
 	SiblingParachainConvertsVia<Sibling, AccountId>,
 	// Straight up local `AccountId32` origins just alias directly to `AccountId`.
 	AccountId32Aliases<RelayNetwork, AccountId>,
+	// Foreign locations alias into accounts according to a hash of their standard description.
+	HashedDescription<AccountId, DescribeFamily<DescribeAllTerminal>>,
+	// Different global consensus parachain sovereign account.
+	// (Used for over-bridge transfers and reserve processing)
+	GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>,
+	// Ethereum contract sovereign account.
+	// (Used to get convert ethereum contract locations to sovereign account)
+	EthereumLocationsConverterFor<AccountId>,
 );
 
 /// Means for transacting assets on this chain.
-pub type CurrencyTransactor = FungibleAdapter<
+pub type FungibleTransactor = FungibleAdapter<
 	// Use this currency:
 	Balances,
 	// Use this currency when it is a fungible asset matching the given location or name:
@@ -124,7 +162,11 @@ pub type FungiblesTransactor = FungiblesAdapter<
 	CheckingAccount,
 >;
 
-pub type ForeignAssetsConvertedConcreteId = assets_common::LocationConvertedConcreteId<
+// Using the latest `Location`, we don't need to worry about migrations for Penpal.
+pub type ForeignAssetsAssetId = Location;
+pub type ForeignAssetsConvertedConcreteId = xcm_builder::MatchedConvertedConcreteId<
+	Location,
+	Balance,
 	EverythingBut<(
 		// Here we rely on fact that something like this works:
 		// assert!(Location::new(1,
@@ -132,7 +174,8 @@ pub type ForeignAssetsConvertedConcreteId = assets_common::LocationConvertedConc
 		// assert!([Parachain(100)].into().starts_with(&Here));
 		StartsWith<assets_common::matching::LocalLocationPattern>,
 	)>,
-	Balance,
+	Identity,
+	TryConvertInto,
 >;
 
 /// Means for transacting foreign assets from different global consensus.
@@ -145,14 +188,14 @@ pub type ForeignFungiblesTransactor = FungiblesAdapter<
 	LocationToAccountId,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
-	// We dont need to check teleports here.
+	// We don't need to check teleports here.
 	NoChecking,
 	// The account to use for tracking teleports.
 	CheckingAccount,
 >;
 
 /// Means for transacting assets on this chain.
-pub type AssetTransactors = (CurrencyTransactor, ForeignFungiblesTransactor, FungiblesTransactor);
+pub type AssetTransactors = (FungibleTransactor, ForeignFungiblesTransactor, FungiblesTransactor);
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
@@ -179,6 +222,7 @@ pub type XcmOriginToTransactDispatchOrigin = (
 );
 
 parameter_types! {
+	pub const RootLocation: Location = Location::here();
 	// One XCM operation is 1_000_000_000 weight - almost certainly a conservative estimate.
 	pub UnitWeightCost: Weight = Weight::from_parts(1_000_000_000, 64 * 1024);
 	pub const MaxInstructions: u32 = 100;
@@ -205,6 +249,8 @@ pub type Barrier = TrailingSetTopicAsId<(
 			AllowTopLevelPaidExecutionFrom<Everything>,
 			// Subscriptions for version tracking are OK.
 			AllowSubscriptionsFrom<Everything>,
+			// HRMP notifications from the relay chain are OK.
+			AllowHrmpNotificationsFromRelayChain,
 		),
 		UniversalLocation,
 		ConstU32<8>,
@@ -250,6 +296,8 @@ pub const TELEPORTABLE_ASSET_ID: u32 = 2;
 pub const ASSETS_PALLET_ID: u8 = 50;
 pub const ASSET_HUB_ID: u32 = 1000;
 
+pub const USDT_ASSET_ID: u128 = 1984;
+
 parameter_types! {
 	/// The location that this chain recognizes as the Relay network's Asset Hub.
 	pub SystemAssetHubLocation: Location = Location::new(1, [Parachain(ASSET_HUB_ID)]);
@@ -266,6 +314,10 @@ parameter_types! {
 	pub LocalReservableFromAssetHub: Location = Location::new(
 		1,
 		[Parachain(ASSET_HUB_ID), PalletInstance(ASSETS_PALLET_ID), GeneralIndex(RESERVABLE_ASSET_ID.into())]
+	);
+	pub UsdtFromAssetHub: Location = Location::new(
+		1,
+		[Parachain(ASSET_HUB_ID), PalletInstance(ASSETS_PALLET_ID), GeneralIndex(USDT_ASSET_ID)],
 	);
 
 	/// The Penpal runtime is utilized for testing with various environment setups.
@@ -297,6 +349,29 @@ pub type TrustedReserves = (
 pub type TrustedTeleporters =
 	(AssetFromChain<LocalTeleportableToAssetHub, SystemAssetHubLocation>,);
 
+pub type WaivedLocations = Equals<RootLocation>;
+/// `AssetId`/`Balance` converter for `TrustBackedAssets`.
+pub type TrustBackedAssetsConvertedConcreteId =
+	assets_common::TrustBackedAssetsConvertedConcreteId<AssetsPalletLocation, Balance>;
+
+/// Asset converter for pool assets.
+/// Used to convert assets in pools to the asset required for fee payment.
+/// The pool must be between the first asset and the one required for fee payment.
+/// This type allows paying fees with any asset in a pool with the asset required for fee payment.
+pub type PoolAssetsExchanger = SingleAssetExchangeAdapter<
+	crate::AssetConversion,
+	crate::NativeAndAssets,
+	(
+		TrustBackedAssetsAsLocation<
+			TrustBackedAssetsPalletLocation,
+			Balance,
+			xcm::latest::Location,
+		>,
+		ForeignAssetsConvertedConcreteId,
+	),
+	AccountId,
+>;
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
@@ -312,18 +387,21 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader = (
 		UsingComponents<WeightToFee, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>,
-		// This trader allows to pay with `is_sufficient=true` "Foreign" assets from dedicated
-		// `pallet_assets` instance - `ForeignAssets`.
-		cumulus_primitives_utility::TakeFirstAssetTrader<
+		cumulus_primitives_utility::SwapFirstAssetTrader<
+			RelayLocation,
+			crate::AssetConversion,
+			WeightToFee,
+			crate::NativeAndAssets,
+			(
+				TrustBackedAssetsAsLocation<
+					TrustBackedAssetsPalletLocation,
+					Balance,
+					xcm::latest::Location,
+				>,
+				ForeignAssetsConvertedConcreteId,
+			),
+			ResolveAssetTo<StakingPot, crate::NativeAndAssets>,
 			AccountId,
-			ForeignAssetFeeAsExistentialDepositMultiplierFeeCharger,
-			ForeignAssetsConvertedConcreteId,
-			ForeignAssets,
-			cumulus_primitives_utility::XcmFeesTo32ByteAccount<
-				ForeignFungiblesTransactor,
-				AccountId,
-				XcmAssetFeesReceiver,
-			>,
 		>,
 	);
 	type ResponseHandler = PolkadotXcm;
@@ -333,20 +411,22 @@ impl xcm_executor::Config for XcmConfig {
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 	type AssetLocker = ();
-	type AssetExchanger = ();
+	type AssetExchanger = PoolAssetsExchanger;
 	type FeeManager = XcmFeeManagerFromComponents<
-		(),
-		XcmFeeToAccount<Self::AssetTransactor, AccountId, TreasuryAccount>,
+		WaivedLocations,
+		SendXcmFeeToAccount<Self::AssetTransactor, TreasuryAccount>,
 	>;
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
-	type Aliasers = Nothing;
+	// We allow trusted Asset Hub root to alias other locations.
+	type Aliasers = AliasOriginRootUsingFilter<SystemAssetHubLocation, Everything>;
 	type TransactionalProcessor = FrameTransactionalProcessor;
 	type HrmpNewChannelOpenRequestHandler = ();
 	type HrmpChannelAcceptedHandler = ();
 	type HrmpChannelClosingHandler = ();
+	type XcmRecorder = PolkadotXcm;
 }
 
 /// Multiplier used for dedicated `TakeFirstAssetTrader` with `ForeignAssets` instance.
@@ -378,9 +458,7 @@ impl pallet_xcm::Config for Runtime {
 	type SendXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	type ExecuteXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type XcmExecuteFilter = Nothing;
-	// ^ Disable dispatchable execute on the XCM pallet.
-	// Needs to be `Everything` for local testing.
+	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
@@ -411,8 +489,8 @@ impl cumulus_pallet_xcm::Config for Runtime {
 /// Simple conversion of `u32` into an `AssetId` for use in benchmarking.
 pub struct XcmBenchmarkHelper;
 #[cfg(feature = "runtime-benchmarks")]
-impl pallet_assets::BenchmarkHelper<xcm::v3::Location> for XcmBenchmarkHelper {
-	fn create_asset_id_parameter(id: u32) -> xcm::v3::Location {
-		xcm::v3::Location::new(1, [xcm::v3::Junction::Parachain(id)])
+impl pallet_assets::BenchmarkHelper<ForeignAssetsAssetId> for XcmBenchmarkHelper {
+	fn create_asset_id_parameter(id: u32) -> ForeignAssetsAssetId {
+		Location::new(1, [Parachain(id)])
 	}
 }

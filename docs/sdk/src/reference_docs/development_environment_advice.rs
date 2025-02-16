@@ -15,8 +15,9 @@
 //! ```json
 //! {
 //!   // Use a separate target dir for Rust Analyzer. Helpful if you want to use Rust
-//!   // Analyzer and cargo on the command line at the same time.
-//!   "rust-analyzer.rust.analyzerTargetDir": "target/vscode-rust-analyzer",
+//!   // Analyzer and cargo on the command line at the same time,
+//!   // at the expense of duplicating build artifacts.
+//!   "rust-analyzer.cargo.targetDir": "target/vscode-rust-analyzer",
 //!   // Improve stability
 //!   "rust-analyzer.server.extraEnv": {
 //!     "CHALK_OVERFLOW_DEPTH": "100000000",
@@ -38,7 +39,7 @@
 //!   // Use nightly formatting.
 //!   // See the polkadot-sdk CI job that checks formatting for the current version used in
 //!   // polkadot-sdk.
-//!   "rust-analyzer.rustfmt.extraArgs": ["+nightly-2024-01-22"],
+//!   "rust-analyzer.rustfmt.extraArgs": ["+nightly-2024-04-10"],
 //! }
 //! ```
 //!
@@ -79,7 +80,7 @@
 //!     # Use nightly formatting.
 //!     # See the polkadot-sdk CI job that checks formatting for the current version used in
 //!     # polkadot-sdk.
-//!     extraArgs = { "+nightly-2024-01-22" },
+//!     extraArgs = { "+nightly-2024-04-10" },
 //!   },
 //! },
 //! ```
@@ -107,6 +108,10 @@
 //! `SKIP_WASM_BUILD=1 cargo check -p frame-support`.
 //!
 //! ### Cargo Remote
+//!
+//! Warning: cargo remote by default doesn't transfer hidden files to the remote machine. But hidden
+//! files can be useful, e.g. for sqlx usage. On the other hand using `--transfer-hidden` flag will
+//! transfer `.git` which is big.
 //!
 //! If you have a powerful remote server available, you may consider using
 //! [cargo-remote](https://github.com/sgeisler/cargo-remote) to execute cargo commands on it,
@@ -145,7 +150,7 @@
 //! }
 //! ```
 //!
-//! //! and the same in Lua for `neovim/nvim-lspconfig`:
+//! and the same in Lua for `neovim/nvim-lspconfig`:
 //!
 //! ```lua
 //! ["rust-analyzer"] = {

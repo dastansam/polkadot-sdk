@@ -25,7 +25,7 @@ use bp_runtime::{
 	decl_bridge_finality_runtime_apis, decl_bridge_messages_runtime_apis,
 	extensions::{
 		CheckEra, CheckGenesis, CheckNonZeroSender, CheckNonce, CheckSpecVersion, CheckTxVersion,
-		CheckWeight, GenericSignedExtension, GenericSignedExtensionSchema,
+		CheckWeight, GenericTransactionExtension, GenericTransactionExtensionSchema,
 	},
 	Chain, ChainId, TransactionEra,
 };
@@ -37,13 +37,16 @@ use frame_support::{
 };
 use frame_system::limits;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::DispatchInfoOf, transaction_validity::TransactionValidityError, Perbill};
+use sp_runtime::{
+	impl_tx_ext_default, traits::Dispatchable, transaction_validity::TransactionValidityError,
+	Perbill, StateVersion,
+};
 
 // This chain reuses most of Polkadot primitives.
 pub use bp_polkadot_core::{
 	AccountAddress, AccountId, Balance, Block, BlockNumber, Hash, Hasher, Header, Nonce, Signature,
 	SignedBlock, UncheckedExtrinsic, AVERAGE_HEADER_SIZE, EXTRA_STORAGE_PROOF_SIZE,
-	MAX_MANDATORY_HEADER_SIZE, REASONABLE_HEADERS_IN_JUSTIFICATON_ANCESTRY,
+	MAX_MANDATORY_HEADER_SIZE, REASONABLE_HEADERS_IN_JUSTIFICATION_ANCESTRY,
 };
 
 /// Maximal number of GRANDPA authorities at Polkadot Bulletin chain.
@@ -62,7 +65,7 @@ const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(90);
 
 // Re following constants - we are using the same values at Cumulus parachains. They are limited
 // by the maximal transaction weight/size. Since block limits at Bulletin Chain are larger than
-// at the Cumulus Bridgeg Hubs, we could reuse the same values.
+// at the Cumulus Bridge Hubs, we could reuse the same values.
 
 /// Maximal number of unrewarded relayer entries at inbound lane for Cumulus-based parachains.
 pub const MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX: MessageNonce = 1024;
@@ -71,10 +74,10 @@ pub const MAX_UNREWARDED_RELAYERS_IN_CONFIRMATION_TX: MessageNonce = 1024;
 pub const MAX_UNCONFIRMED_MESSAGES_IN_CONFIRMATION_TX: MessageNonce = 4096;
 
 /// This signed extension is used to ensure that the chain transactions are signed by proper
-pub type ValidateSigned = GenericSignedExtensionSchema<(), ()>;
+pub type ValidateSigned = GenericTransactionExtensionSchema<(), ()>;
 
 /// Signed extension schema, used by Polkadot Bulletin.
-pub type SignedExtensionSchema = GenericSignedExtension<(
+pub type TransactionExtensionSchema = GenericTransactionExtension<(
 	(
 		CheckNonZeroSender,
 		CheckSpecVersion,
@@ -87,34 +90,30 @@ pub type SignedExtensionSchema = GenericSignedExtension<(
 	ValidateSigned,
 )>;
 
-/// Signed extension, used by Polkadot Bulletin.
+/// Transaction extension, used by Polkadot Bulletin.
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
-pub struct SignedExtension(SignedExtensionSchema);
+pub struct TransactionExtension(TransactionExtensionSchema);
 
-impl sp_runtime::traits::SignedExtension for SignedExtension {
+impl<C> sp_runtime::traits::TransactionExtension<C> for TransactionExtension
+where
+	C: Dispatchable,
+{
 	const IDENTIFIER: &'static str = "Not needed.";
-	type AccountId = ();
-	type Call = ();
-	type AdditionalSigned =
-		<SignedExtensionSchema as sp_runtime::traits::SignedExtension>::AdditionalSigned;
+	type Implicit =
+		<TransactionExtensionSchema as sp_runtime::traits::TransactionExtension<C>>::Implicit;
+
+	fn implicit(&self) -> Result<Self::Implicit, TransactionValidityError> {
+		<TransactionExtensionSchema as sp_runtime::traits::TransactionExtension<C>>::implicit(
+			&self.0,
+		)
+	}
 	type Pre = ();
+	type Val = ();
 
-	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
-		self.0.additional_signed()
-	}
-
-	fn pre_dispatch(
-		self,
-		_who: &Self::AccountId,
-		_call: &Self::Call,
-		_info: &DispatchInfoOf<Self::Call>,
-		_len: usize,
-	) -> Result<Self::Pre, TransactionValidityError> {
-		Ok(())
-	}
+	impl_tx_ext_default!(C; weight validate prepare);
 }
 
-impl SignedExtension {
+impl TransactionExtension {
 	/// Create signed extension from its components.
 	pub fn from_params(
 		spec_version: u32,
@@ -123,7 +122,7 @@ impl SignedExtension {
 		genesis_hash: Hash,
 		nonce: Nonce,
 	) -> Self {
-		Self(GenericSignedExtension::new(
+		Self(GenericTransactionExtension::new(
 			(
 				(
 					(),              // non-zero sender
@@ -192,6 +191,8 @@ impl Chain for PolkadotBulletin {
 	type Nonce = Nonce;
 	type Signature = Signature;
 
+	const STATE_VERSION: StateVersion = StateVersion::V1;
+
 	fn max_extrinsic_size() -> u32 {
 		*BlockLength::get().max.get(DispatchClass::Normal)
 	}
@@ -207,8 +208,8 @@ impl Chain for PolkadotBulletin {
 impl ChainWithGrandpa for PolkadotBulletin {
 	const WITH_CHAIN_GRANDPA_PALLET_NAME: &'static str = WITH_POLKADOT_BULLETIN_GRANDPA_PALLET_NAME;
 	const MAX_AUTHORITIES_COUNT: u32 = MAX_AUTHORITIES_COUNT;
-	const REASONABLE_HEADERS_IN_JUSTIFICATON_ANCESTRY: u32 =
-		REASONABLE_HEADERS_IN_JUSTIFICATON_ANCESTRY;
+	const REASONABLE_HEADERS_IN_JUSTIFICATION_ANCESTRY: u32 =
+		REASONABLE_HEADERS_IN_JUSTIFICATION_ANCESTRY;
 	const MAX_MANDATORY_HEADER_SIZE: u32 = MAX_MANDATORY_HEADER_SIZE;
 	const AVERAGE_HEADER_SIZE: u32 = AVERAGE_HEADER_SIZE;
 }
@@ -224,4 +225,4 @@ impl ChainWithMessages for PolkadotBulletin {
 }
 
 decl_bridge_finality_runtime_apis!(polkadot_bulletin, grandpa);
-decl_bridge_messages_runtime_apis!(polkadot_bulletin);
+decl_bridge_messages_runtime_apis!(polkadot_bulletin, bp_messages::LegacyLaneId);

@@ -21,14 +21,9 @@
 
 use crate::{mock_helpers::*, Event, Historic};
 
-use frame_support::{
-	derive_impl,
-	migrations::*,
-	traits::{OnFinalize, OnInitialize},
-	weights::Weight,
-};
+use frame_support::{derive_impl, migrations::*, weights::Weight};
 use frame_system::EventRecord;
-use sp_core::{ConstU32, H256};
+use sp_core::H256;
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -51,15 +46,14 @@ frame_support::parameter_types! {
 	pub const MaxServiceWeight: Weight = Weight::MAX.div(10);
 }
 
+#[derive_impl(crate::config_preludes::TestDefaultConfig)]
 impl crate::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
+	#[cfg(feature = "runtime-benchmarks")]
+	type Migrations = crate::mock_helpers::MockedMigrations;
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Migrations = MockedMigrations;
-	type CursorMaxLen = ConstU32<65_536>;
-	type IdentifierMaxLen = ConstU32<256>;
 	type MigrationStatusHandler = MockedMigrationStatusHandler;
 	type FailedMigrationHandler = MockedFailedMigrationHandler;
-	type MaxServiceWeight = MaxServiceWeight;
-	type WeightInfo = ();
 }
 
 frame_support::parameter_types! {
@@ -114,18 +108,18 @@ pub fn test_closure<R>(f: impl FnOnce() -> R) -> R {
 	ext.execute_with(f)
 }
 
-pub fn run_to_block(n: u32) {
-	while System::block_number() < n as u64 {
-		log::debug!("Block {}", System::block_number());
-		System::set_block_number(System::block_number() + 1);
-		System::on_initialize(System::block_number());
-		Migrations::on_initialize(System::block_number());
-		// Executive calls this:
-		<Migrations as MultiStepMigrator>::step();
-
-		Migrations::on_finalize(System::block_number());
-		System::on_finalize(System::block_number());
-	}
+pub fn run_to_block(n: u64) {
+	System::run_to_block_with::<AllPalletsWithSystem>(
+		n,
+		frame_system::RunToBlockHooks::default()
+			.before_initialize(|bn| {
+				log::debug!("Block {bn}");
+			})
+			.after_initialize(|_| {
+				// Executive calls this:
+				<Migrations as MultiStepMigrator>::step();
+			}),
+	);
 }
 
 /// Returns the historic migrations, sorted by their identifier.

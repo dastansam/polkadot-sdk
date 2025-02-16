@@ -31,7 +31,7 @@ use bandersnatch_vrfs::{CanonicalSerialize, SecretKey};
 use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use scale_info::TypeInfo;
 
-use sp_std::{vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 
 /// Identifier used to match public keys against bandersnatch-vrf keys.
 pub const CRYPTO_ID: CryptoTypeId = CryptoTypeId(*b"band");
@@ -249,7 +249,7 @@ pub mod vrf {
 	///
 	/// The `transcript` summarizes a set of messages which are defining a particular
 	/// protocol by automating the Fiat-Shamir transform for challenge generation.
-	/// A good explaination of the topic can be found in Merlin [docs](https://merlin.cool/)
+	/// A good explanation of the topic can be found in Merlin [docs](https://merlin.cool/)
 	///
 	/// The `inputs` is a sequence of [`VrfInput`]s which, during the signing procedure, are
 	/// first transformed to [`VrfPreOutput`]s. Both inputs and pre-outputs are then appended to

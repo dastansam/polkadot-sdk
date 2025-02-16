@@ -23,20 +23,21 @@
 
 use polkadot_subsystem_bench::{
 	availability::{
-		benchmark_availability_read, prepare_test, DataAvailabilityReadOptions,
+		benchmark_availability_read, prepare_test, DataAvailabilityReadOptions, Strategy,
 		TestDataAvailability, TestState,
 	},
 	configuration::TestConfiguration,
 	usage::BenchmarkUsage,
+	utils::save_to_file,
 };
 use std::io::Write;
 
-const BENCH_COUNT: usize = 50;
+const BENCH_COUNT: usize = 10;
 
 fn main() -> Result<(), String> {
 	let mut messages = vec![];
 
-	let options = DataAvailabilityReadOptions { fetch_from_backers: true };
+	let options = DataAvailabilityReadOptions { strategy: Strategy::FullFromBackers };
 	let mut config = TestConfiguration::default();
 	config.num_blocks = 3;
 	config.generate_pov_sizes();
@@ -50,24 +51,26 @@ fn main() -> Result<(), String> {
 			std::io::stdout().flush().unwrap();
 			let (mut env, _cfgs) =
 				prepare_test(&state, TestDataAvailability::Read(options.clone()), false);
-			env.runtime().block_on(benchmark_availability_read(
-				"data_availability_read",
-				&mut env,
-				&state,
-			))
+			env.runtime().block_on(benchmark_availability_read(&mut env, &state))
 		})
 		.collect();
 	println!("\rDone!{}", " ".repeat(BENCH_COUNT));
+
 	let average_usage = BenchmarkUsage::average(&usages);
+	save_to_file(
+		"charts/availability-recovery-regression-bench.json",
+		average_usage.to_chart_json().map_err(|e| e.to_string())?,
+	)
+	.map_err(|e| e.to_string())?;
 	println!("{}", average_usage);
 
 	// We expect no variance for received and sent
 	// but use 0.001 because we operate with floats
 	messages.extend(average_usage.check_network_usage(&[
-		("Received from peers", 307200.000, 0.001),
-		("Sent to peers", 1.667, 0.001),
+		("Received from peers", 307203.0000, 0.001),
+		("Sent to peers", 1.6667, 0.001),
 	]));
-	messages.extend(average_usage.check_cpu_usage(&[("availability-recovery", 11.500, 0.05)]));
+	messages.extend(average_usage.check_cpu_usage(&[("availability-recovery", 12.8412, 0.1)]));
 
 	if messages.is_empty() {
 		Ok(())

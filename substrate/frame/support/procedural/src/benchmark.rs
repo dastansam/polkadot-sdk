@@ -30,7 +30,7 @@ use syn::{
 	token::{Comma, Gt, Lt, PathSep},
 	Attribute, Error, Expr, ExprBlock, ExprCall, ExprPath, FnArg, Item, ItemFn, ItemMod, Pat, Path,
 	PathArguments, PathSegment, Result, ReturnType, Signature, Stmt, Token, Type, TypePath,
-	Visibility, WhereClause,
+	Visibility, WhereClause, WherePredicate,
 };
 
 mod keywords {
@@ -249,7 +249,7 @@ impl BenchmarkCallDef {
 	}
 }
 
-/// Represents a parsed `#[benchmark]` or `#[instance_banchmark]` item.
+/// Represents a parsed `#[benchmark]` or `#[instance_benchmark]` item.
 #[derive(Clone)]
 struct BenchmarkDef {
 	params: Vec<ParamDef>,
@@ -299,6 +299,24 @@ fn ensure_valid_return_type(item_fn: &ItemFn) -> Result<()> {
 			.last()
 			.expect("to be parsed as a TypePath, it must have at least one segment; qed");
 		syn::parse2::<keywords::BenchmarkError>(seg.to_token_stream())?;
+	}
+	Ok(())
+}
+
+/// Ensure that the passed statements do not contain any forbidden variable names
+fn ensure_no_forbidden_variable_names(stmts: &[Stmt]) -> Result<()> {
+	const FORBIDDEN_VAR_NAMES: [&str; 2] = ["recording", "verify"];
+	for stmt in stmts {
+		let Stmt::Local(l) = stmt else { continue };
+		let Pat::Ident(ident) = &l.pat else { continue };
+		if FORBIDDEN_VAR_NAMES.contains(&ident.ident.to_string().as_str()) {
+			return Err(Error::new(
+				ident.span(),
+				format!(
+					"Variables {FORBIDDEN_VAR_NAMES:?} are reserved for benchmarking internals.",
+				),
+			));
+		}
 	}
 	Ok(())
 }
@@ -436,9 +454,12 @@ impl BenchmarkDef {
 			},
 		};
 
+		let setup_stmts = Vec::from(&item_fn.block.stmts[0..i]);
+		ensure_no_forbidden_variable_names(&setup_stmts)?;
+
 		Ok(BenchmarkDef {
 			params,
-			setup_stmts: Vec::from(&item_fn.block.stmts[0..i]),
+			setup_stmts,
 			call_def,
 			verify_stmts,
 			last_stmt,
@@ -460,13 +481,30 @@ pub fn benchmarks(
 	let module: ItemMod = syn::parse(tokens)?;
 	let mod_span = module.span();
 	let where_clause = match syn::parse::<Nothing>(attrs.clone()) {
-		Ok(_) => quote!(),
-		Err(_) => syn::parse::<WhereClause>(attrs)?.predicates.to_token_stream(),
+		Ok(_) =>
+			if instance {
+				quote!(T: Config<I>, I: 'static)
+			} else {
+				quote!(T: Config)
+			},
+		Err(_) => {
+			let mut where_clause_predicates = syn::parse::<WhereClause>(attrs)?.predicates;
+
+			// Ensure the where clause contains the Config trait bound
+			if instance {
+				where_clause_predicates.push(syn::parse_str::<WherePredicate>("T: Config<I>")?);
+				where_clause_predicates.push(syn::parse_str::<WherePredicate>("I:'static")?);
+			} else {
+				where_clause_predicates.push(syn::parse_str::<WherePredicate>("T: Config")?);
+			}
+
+			where_clause_predicates.to_token_stream()
+		},
 	};
 	let mod_vis = module.vis;
 	let mod_name = module.ident;
 
-	// consume #[benchmarks] attribute by exclusing it from mod_attrs
+	// consume #[benchmarks] attribute by excluding it from mod_attrs
 	let mod_attrs: Vec<&Attribute> = module
 		.attrs
 		.iter()
@@ -547,10 +585,6 @@ pub fn benchmarks(
 		false => quote!(T),
 		true => quote!(T, I),
 	};
-	let type_impl_generics = match instance {
-		false => quote!(T: Config),
-		true => quote!(T: Config<I>, I: 'static),
-	};
 
 	let frame_system = generate_access_from_frame_or_crate("frame-system")?;
 
@@ -619,7 +653,7 @@ pub fn benchmarks(
 				*
 			}
 
-			impl<#type_impl_generics> #krate::BenchmarkingSetup<#type_use_generics> for SelectedBenchmark where #where_clause {
+			impl<#type_use_generics> #krate::BenchmarkingSetup<#type_use_generics> for SelectedBenchmark where #where_clause {
 				fn components(&self) -> #krate::__private::Vec<(#krate::BenchmarkParameter, u32, u32)> {
 					match self {
 						#(
@@ -633,18 +667,16 @@ pub fn benchmarks(
 
 				fn instance(
 					&self,
+					recording: &mut impl #krate::Recording,
 					components: &[(#krate::BenchmarkParameter, u32)],
 					verify: bool,
-				) -> Result<
-					#krate::__private::Box<dyn FnOnce() -> Result<(), #krate::BenchmarkError>>,
-					#krate::BenchmarkError,
-				> {
+				) -> Result<(), #krate::BenchmarkError> {
 					match self {
 						#(
 							Self::#benchmark_names => {
 								<#benchmark_names as #krate::BenchmarkingSetup<
 									#type_use_generics
-								>>::instance(&#benchmark_names, components, verify)
+								>>::instance(&#benchmark_names, recording, components, verify)
 							}
 						)
 						*
@@ -652,8 +684,8 @@ pub fn benchmarks(
 				}
 			}
 			#[cfg(any(feature = "runtime-benchmarks", test))]
-			impl<#type_impl_generics> #krate::Benchmarking for Pallet<#type_use_generics>
-			where T: #frame_system::Config, #where_clause
+			impl<#type_use_generics> #krate::Benchmarking for Pallet<#type_use_generics>
+			where T: #frame_system::Config,#where_clause
 			{
 				fn benchmarks(
 					extra: bool,
@@ -735,17 +767,7 @@ pub fn benchmarks(
 					#krate::benchmarking::set_whitelist(whitelist.clone());
 					let mut results: #krate::__private::Vec<#krate::BenchmarkResult> = #krate::__private::Vec::new();
 
-					// Always do at least one internal repeat...
-					for _ in 0 .. internal_repeats.max(1) {
-						// Always reset the state after the benchmark.
-						#krate::__private::defer!(#krate::benchmarking::wipe_db());
-
-						// Set up the externalities environment for the setup we want to
-						// benchmark.
-						let closure_to_benchmark = <
-							SelectedBenchmark as #krate::BenchmarkingSetup<#type_use_generics>
-						>::instance(&selected_benchmark, c, verify)?;
-
+					let on_before_start = || {
 						// Set the block number to at least 1 so events are deposited.
 						if #krate::__private::Zero::is_zero(&#frame_system::Pallet::<T>::block_number()) {
 							#frame_system::Pallet::<T>::set_block_number(1u32.into());
@@ -763,6 +785,12 @@ pub fn benchmarks(
 
 						// Reset the read/write counter so we don't count operations in the setup process.
 						#krate::benchmarking::reset_read_write_count();
+					};
+
+					// Always do at least one internal repeat...
+					for _ in 0 .. internal_repeats.max(1) {
+						// Always reset the state after the benchmark.
+						#krate::__private::defer!(#krate::benchmarking::wipe_db());
 
 						// Time the extrinsic logic.
 						#krate::__private::log::trace!(
@@ -772,20 +800,12 @@ pub fn benchmarks(
 							c
 						);
 
-						let start_pov = #krate::benchmarking::proof_size();
-						let start_extrinsic = #krate::benchmarking::current_time();
-
-						closure_to_benchmark()?;
-
-						let finish_extrinsic = #krate::benchmarking::current_time();
-						let end_pov = #krate::benchmarking::proof_size();
+						let mut recording = #krate::BenchmarkRecording::new(&on_before_start);
+						<SelectedBenchmark as #krate::BenchmarkingSetup<#type_use_generics>>::instance(&selected_benchmark, &mut recording, c, verify)?;
 
 						// Calculate the diff caused by the benchmark.
-						let elapsed_extrinsic = finish_extrinsic.saturating_sub(start_extrinsic);
-						let diff_pov = match (start_pov, end_pov) {
-							(Some(start), Some(end)) => end.saturating_sub(start),
-							_ => Default::default(),
-						};
+						let elapsed_extrinsic = recording.elapsed_extrinsic().expect("elapsed time should be recorded");
+						let diff_pov = recording.diff_pov().unwrap_or_default();
 
 						// Commit the changes to get proper write count
 						#krate::benchmarking::commit_db();
@@ -830,7 +850,7 @@ pub fn benchmarks(
 			}
 
 			#[cfg(test)]
-			impl<#type_impl_generics> Pallet<#type_use_generics> where T: #frame_system::Config, #where_clause {
+			impl<#type_use_generics> Pallet<#type_use_generics> where T: #frame_system::Config, #where_clause {
 				/// Test a particular benchmark by name.
 				///
 				/// This isn't called `test_benchmark_by_name` just in case some end-user eventually
@@ -921,11 +941,6 @@ fn expand_benchmark(
 	let type_use_generics = match is_instance {
 		false => quote!(T),
 		true => quote!(T, I),
-	};
-
-	let type_impl_generics = match is_instance {
-		false => quote!(T: Config),
-		true => quote!(T: Config<I>, I: 'static),
 	};
 
 	// used in the benchmarking impls
@@ -1023,13 +1038,11 @@ fn expand_benchmark(
 
 	// modify signature generics, ident, and inputs, e.g:
 	// before: `fn bench(u: Linear<1, 100>) -> Result<(), BenchmarkError>`
-	// after: `fn _bench <T: Config<I>, I: 'static>(u: u32, verify: bool) -> Result<(),
+	// after: `fn _bench <T, I>(u: u32, verify: bool) where T: Config<I>, I: 'static -> Result<(),
 	// BenchmarkError>`
 	let mut sig = benchmark_def.fn_sig;
-	sig.generics = parse_quote!(<#type_impl_generics>);
-	if !where_clause.is_empty() {
-		sig.generics.where_clause = parse_quote!(where #where_clause);
-	}
+	sig.generics = parse_quote!(<#type_use_generics>);
+	sig.generics.where_clause = parse_quote!(where #where_clause);
 	sig.ident =
 		Ident::new(format!("_{}", name.to_token_stream().to_string()).as_str(), Span::call_site());
 	let mut fn_param_inputs: Vec<TokenStream2> =
@@ -1074,7 +1087,7 @@ fn expand_benchmark(
 		struct #name;
 
 		#[allow(unused_variables)]
-		impl<#type_impl_generics> #krate::BenchmarkingSetup<#type_use_generics>
+		impl<#type_use_generics> #krate::BenchmarkingSetup<#type_use_generics>
 		for #name where #where_clause {
 			fn components(&self) -> #krate::__private::Vec<(#krate::BenchmarkParameter, u32, u32)> {
 				#krate::__private::vec! [
@@ -1086,9 +1099,10 @@ fn expand_benchmark(
 
 			fn instance(
 				&self,
+				recording: &mut impl #krate::Recording,
 				components: &[(#krate::BenchmarkParameter, u32)],
 				verify: bool
-			) -> Result<#krate::__private::Box<dyn FnOnce() -> Result<(), #krate::BenchmarkError>>, #krate::BenchmarkError> {
+			) -> Result<(), #krate::BenchmarkError> {
 				#(
 					// prepare instance #param_names
 					let #param_names = components.iter()
@@ -1102,20 +1116,20 @@ fn expand_benchmark(
 					#setup_stmts
 				)*
 				#pre_call
-				Ok(#krate::__private::Box::new(move || -> Result<(), #krate::BenchmarkError> {
-					#post_call
-					if verify {
-						#(
-							#verify_stmts
-						)*
-					}
-					#impl_last_stmt
-				}))
+				recording.start();
+				#post_call
+				recording.stop();
+				if verify {
+					#(
+						#verify_stmts
+					)*
+				}
+				#impl_last_stmt
 			}
 		}
 
 		#[cfg(test)]
-		impl<#type_impl_generics> Pallet<#type_use_generics> where T: #frame_system::Config, #where_clause {
+		impl<#type_use_generics> Pallet<#type_use_generics> where T: #frame_system::Config, #where_clause {
 			#[allow(unused)]
 			fn #test_ident() -> Result<(), #krate::BenchmarkError> {
 				let selected_benchmark = SelectedBenchmark::#name;
@@ -1128,18 +1142,15 @@ fn expand_benchmark(
 					// Always reset the state after the benchmark.
 					#krate::__private::defer!(#krate::benchmarking::wipe_db());
 
-					// Set up the benchmark, return execution + verification function.
-					let closure_to_verify = <
-						SelectedBenchmark as #krate::BenchmarkingSetup<T, _>
-					>::instance(&selected_benchmark, &c, true)?;
-
-					// Set the block number to at least 1 so events are deposited.
-					if #krate::__private::Zero::is_zero(&#frame_system::Pallet::<T>::block_number()) {
-						#frame_system::Pallet::<T>::set_block_number(1u32.into());
-					}
+					let on_before_start = || {
+						// Set the block number to at least 1 so events are deposited.
+						if #krate::__private::Zero::is_zero(&#frame_system::Pallet::<T>::block_number()) {
+							#frame_system::Pallet::<T>::set_block_number(1u32.into());
+						}
+					};
 
 					// Run execution + verification
-					closure_to_verify()
+					<SelectedBenchmark as #krate::BenchmarkingSetup<T, _>>::test_instance(&selected_benchmark,  &c, &on_before_start)
 				};
 
 				if components.is_empty() {

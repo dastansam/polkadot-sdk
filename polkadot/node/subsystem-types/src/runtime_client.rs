@@ -19,13 +19,15 @@ use polkadot_primitives::{
 	async_backing,
 	runtime_api::ParachainHost,
 	slashing,
-	vstaging::{self, ApprovalVotingParams},
-	Block, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreIndex, CoreState, DisputeState, ExecutorParams,
-	GroupRotationInfo, Hash, Header, Id, InboundDownwardMessage, InboundHrmpMessage,
-	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	vstaging::{
+		self, async_backing::Constraints, CandidateEvent,
+		CommittedCandidateReceiptV2 as CommittedCandidateReceipt, CoreState, ScrapedOnChainVotes,
+	},
+	ApprovalVotingParams, Block, BlockNumber, CandidateCommitments, CandidateHash, CoreIndex,
+	DisputeState, ExecutorParams, GroupRotationInfo, Hash, Header, Id, InboundDownwardMessage,
+	InboundHrmpMessage, NodeFeatures, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 use sc_client_api::{AuxStore, HeaderBackend};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
@@ -239,23 +241,18 @@ pub trait RuntimeApiSubsystemClient {
 	/***** Added in v3 **** */
 
 	/// Returns all onchain disputes.
-	/// This is a staging method! Do not use on production runtimes!
 	async fn disputes(
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
 
 	/// Returns a list of validators that lost a past session dispute and need to be slashed.
-	///
-	/// WARNING: This is a staging method! Do not use on production runtimes!
 	async fn unapplied_slashes(
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, slashing::PendingSlashes)>, ApiError>;
 
 	/// Returns a merkle proof of a validator session key in a past session.
-	///
-	/// WARNING: This is a staging method! Do not use on production runtimes!
 	async fn key_ownership_proof(
 		&self,
 		at: Hash,
@@ -264,8 +261,6 @@ pub trait RuntimeApiSubsystemClient {
 
 	/// Submits an unsigned extrinsic to slash validators who lost a dispute about
 	/// a candidate of a past session.
-	///
-	/// WARNING: This is a staging method! Do not use on production runtimes!
 	async fn submit_report_dispute_lost(
 		&self,
 		at: Hash,
@@ -315,7 +310,7 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 		para_id: Id,
-	) -> Result<Option<async_backing::BackingState>, ApiError>;
+	) -> Result<Option<vstaging::async_backing::BackingState>, ApiError>;
 
 	// === v8 ===
 
@@ -324,7 +319,7 @@ pub trait RuntimeApiSubsystemClient {
 
 	// === v9 ===
 	/// Get the node features.
-	async fn node_features(&self, at: Hash) -> Result<vstaging::NodeFeatures, ApiError>;
+	async fn node_features(&self, at: Hash) -> Result<NodeFeatures, ApiError>;
 
 	// == v10: Approval voting params ==
 	/// Approval voting configuration parameters
@@ -337,6 +332,27 @@ pub trait RuntimeApiSubsystemClient {
 	// == v11: Claim queue ==
 	/// Fetch the `ClaimQueue` from scheduler pallet
 	async fn claim_queue(&self, at: Hash) -> Result<BTreeMap<CoreIndex, VecDeque<Id>>, ApiError>;
+
+	// == v11: Elastic scaling support ==
+	/// Get the receipts of all candidates pending availability for a `ParaId`.
+	async fn candidates_pending_availability(
+		&self,
+		at: Hash,
+		para_id: Id,
+	) -> Result<Vec<CommittedCandidateReceipt<Hash>>, ApiError>;
+
+	// == v12 ==
+	/// Get the constraints on the actions that can be taken by a new parachain
+	/// block.
+	async fn backing_constraints(
+		&self,
+		at: Hash,
+		para_id: Id,
+	) -> Result<Option<Constraints>, ApiError>;
+
+	// === v12 ===
+	/// Fetch the scheduling lookahead value
+	async fn scheduling_lookahead(&self, at: Hash) -> Result<u32, ApiError>;
 }
 
 /// Default implementation of [`RuntimeApiSubsystemClient`] using the client.
@@ -430,6 +446,14 @@ where
 		para_id: Id,
 	) -> Result<Option<CommittedCandidateReceipt<Hash>>, ApiError> {
 		self.client.runtime_api().candidate_pending_availability(at, para_id)
+	}
+
+	async fn candidates_pending_availability(
+		&self,
+		at: Hash,
+		para_id: Id,
+	) -> Result<Vec<CommittedCandidateReceipt<Hash>>, ApiError> {
+		self.client.runtime_api().candidates_pending_availability(at, para_id)
 	}
 
 	async fn candidate_events(&self, at: Hash) -> Result<Vec<CandidateEvent<Hash>>, ApiError> {
@@ -575,7 +599,7 @@ where
 		&self,
 		at: Hash,
 		para_id: Id,
-	) -> Result<Option<async_backing::BackingState>, ApiError> {
+	) -> Result<Option<vstaging::async_backing::BackingState>, ApiError> {
 		self.client.runtime_api().para_backing_state(at, para_id)
 	}
 
@@ -586,7 +610,7 @@ where
 		self.client.runtime_api().async_backing_params(at)
 	}
 
-	async fn node_features(&self, at: Hash) -> Result<vstaging::NodeFeatures, ApiError> {
+	async fn node_features(&self, at: Hash) -> Result<NodeFeatures, ApiError> {
 		self.client.runtime_api().node_features(at)
 	}
 
@@ -605,6 +629,18 @@ where
 
 	async fn claim_queue(&self, at: Hash) -> Result<BTreeMap<CoreIndex, VecDeque<Id>>, ApiError> {
 		self.client.runtime_api().claim_queue(at)
+	}
+
+	async fn backing_constraints(
+		&self,
+		at: Hash,
+		para_id: Id,
+	) -> Result<Option<Constraints>, ApiError> {
+		self.client.runtime_api().backing_constraints(at, para_id)
+	}
+
+	async fn scheduling_lookahead(&self, at: Hash) -> Result<u32, ApiError> {
+		self.client.runtime_api().scheduling_lookahead(at)
 	}
 }
 
@@ -631,7 +667,8 @@ where
 	fn number(
 		&self,
 		hash: Block::Hash,
-	) -> sc_client_api::blockchain::Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>> {
+	) -> sc_client_api::blockchain::Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>>
+	{
 		self.client.number(hash)
 	}
 
