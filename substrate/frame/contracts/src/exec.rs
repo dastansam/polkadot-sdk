@@ -315,7 +315,10 @@ pub trait Ext: sealing::Sealed {
 	fn debug_buffer_enabled(&self) -> bool;
 
 	/// Call some dispatchable and return the result.
-	fn call_runtime(&self, call: <Self::T as Config>::RuntimeCall) -> DispatchResultWithPostInfo;
+	fn call_runtime(
+		&self,
+		call: <Self::T as frame_system::Config>::RuntimeCall,
+	) -> DispatchResultWithPostInfo;
 
 	/// Recovers ECDSA compressed public key based on signature and message hash.
 	fn ecdsa_recover(&self, signature: &[u8; 65], message_hash: &[u8; 32]) -> Result<[u8; 33], ()>;
@@ -1547,7 +1550,10 @@ where
 		}
 	}
 
-	fn call_runtime(&self, call: <Self::T as Config>::RuntimeCall) -> DispatchResultWithPostInfo {
+	fn call_runtime(
+		&self,
+		call: <Self::T as frame_system::Config>::RuntimeCall,
+	) -> DispatchResultWithPostInfo {
 		let mut origin: T::RuntimeOrigin = RawOrigin::Signed(self.address().clone()).into();
 		origin.add_filter(T::CallFilter::contains);
 		call.dispatch(origin)

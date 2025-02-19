@@ -98,17 +98,17 @@ pub struct LotteryConfig<BlockNumber, Balance> {
 }
 
 pub trait ValidateCall<T: Config> {
-	fn validate_call(call: &<T as Config>::RuntimeCall) -> bool;
+	fn validate_call(call: &<T as frame_system::Config>::RuntimeCall) -> bool;
 }
 
 impl<T: Config> ValidateCall<T> for () {
-	fn validate_call(_: &<T as Config>::RuntimeCall) -> bool {
+	fn validate_call(_: &<T as frame_system::Config>::RuntimeCall) -> bool {
 		false
 	}
 }
 
 impl<T: Config> ValidateCall<T> for Pallet<T> {
-	fn validate_call(call: &<T as Config>::RuntimeCall) -> bool {
+	fn validate_call(call: &<T as frame_system::Config>::RuntimeCall) -> bool {
 		let valid_calls = CallIndices::<T>::get();
 		let call_index = match Self::call_to_index(call) {
 			Ok(call_index) => call_index,
@@ -135,6 +135,7 @@ pub mod pallet {
 		type PalletId: Get<PalletId>;
 
 		/// A dispatchable call.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin>
 			+ GetDispatchInfo
@@ -147,6 +148,7 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 
 		/// The overarching event type.
+		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The manager origin.
@@ -304,7 +306,7 @@ pub mod pallet {
 		)]
 		pub fn buy_ticket(
 			origin: OriginFor<T>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
 			call.clone().dispatch(origin).map_err(|e| e.error)?;
@@ -323,7 +325,7 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::set_calls(calls.len() as u32))]
 		pub fn set_calls(
 			origin: OriginFor<T>,
-			calls: Vec<<T as Config>::RuntimeCall>,
+			calls: Vec<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			T::ManagerOrigin::ensure_origin(origin)?;
 			ensure!(calls.len() <= T::MaxCalls::get() as usize, Error::<T>::TooManyCalls);
@@ -416,7 +418,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Converts a vector of calls into a vector of call indices.
 	fn calls_to_indices(
-		calls: &[<T as Config>::RuntimeCall],
+		calls: &[<T as frame_system::Config>::RuntimeCall],
 	) -> Result<BoundedVec<CallIndex, T::MaxCalls>, DispatchError> {
 		let mut indices = BoundedVec::<CallIndex, T::MaxCalls>::with_bounded_capacity(calls.len());
 		for c in calls.iter() {
@@ -427,7 +429,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Convert a call to it's call index by encoding the call and taking the first two bytes.
-	fn call_to_index(call: &<T as Config>::RuntimeCall) -> Result<CallIndex, DispatchError> {
+	fn call_to_index(
+		call: &<T as frame_system::Config>::RuntimeCall,
+	) -> Result<CallIndex, DispatchError> {
 		let encoded_call = call.encode();
 		if encoded_call.len() < 2 {
 			return Err(Error::<T>::EncodingFailed.into())
@@ -436,7 +440,10 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Logic for buying a ticket.
-	fn do_buy_ticket(caller: &T::AccountId, call: &<T as Config>::RuntimeCall) -> DispatchResult {
+	fn do_buy_ticket(
+		caller: &T::AccountId,
+		call: &<T as frame_system::Config>::RuntimeCall,
+	) -> DispatchResult {
 		// Check the call is valid lottery
 		let config = Lottery::<T>::get().ok_or(Error::<T>::NotConfigured)?;
 		let block_number = frame_system::Pallet::<T>::block_number();

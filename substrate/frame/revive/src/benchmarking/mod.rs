@@ -230,7 +230,7 @@ fn default_deposit_limit<T: Config>() -> BalanceOf<T> {
 		T: Config,
 		MomentOf<T>: Into<U256>,
 		<T as frame_system::Config>::RuntimeEvent: From<pallet::Event<T>>,
-		<T as Config>::RuntimeCall: From<frame_system::Call<T>>,
+		<T as frame_system::Config>::RuntimeCall: From<frame_system::Call<T>>,
 		<T as frame_system::Config>::Hash: frame_support::traits::IsType<H256>,
 )]
 mod benchmarks {

@@ -30,6 +30,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
+		#[allow(deprecated)]
 		type RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin>
 			+ GetDispatchInfo
 			+ From<frame_system::Call<Self>>
@@ -63,7 +64,7 @@ pub mod pallet {
 		/// If set to `Err`, benchmarks which rely on a `transact_origin_and_runtime_call` will be
 		/// skipped.
 		fn transact_origin_and_runtime_call(
-		) -> Result<(Location, <Self as crate::generic::Config<I>>::RuntimeCall), BenchmarkError>;
+		) -> Result<(Location, <Self as frame_system::Config>::RuntimeCall), BenchmarkError>;
 
 		/// A valid `Location` we can successfully subscribe to.
 		///

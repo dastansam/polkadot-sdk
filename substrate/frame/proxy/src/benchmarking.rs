@@ -93,7 +93,7 @@ mod benchmarks {
 		// ... and "real" is the traditional caller. This is not a typo.
 		let real: T::AccountId = whitelisted_caller();
 		let real_lookup = T::Lookup::unlookup(real);
-		let call: <T as Config>::RuntimeCall =
+		let call: <T as SystemConfig>::RuntimeCall =
 			frame_system::Call::<T>::remark { remark: vec![] }.into();
 
 		#[extrinsic_call]
@@ -118,7 +118,7 @@ mod benchmarks {
 		// ... and "real" is the traditional caller. This is not a typo.
 		let real: T::AccountId = whitelisted_caller();
 		let real_lookup = T::Lookup::unlookup(real);
-		let call: <T as Config>::RuntimeCall =
+		let call: <T as SystemConfig>::RuntimeCall =
 			frame_system::Call::<T>::remark { remark: vec![] }.into();
 		Proxy::<T>::announce(
 			RawOrigin::Signed(delegate.clone()).into(),
@@ -153,7 +153,7 @@ mod benchmarks {
 		// ... and "real" is the traditional caller. This is not a typo.
 		let real: T::AccountId = whitelisted_caller();
 		let real_lookup = T::Lookup::unlookup(real);
-		let call: <T as Config>::RuntimeCall =
+		let call: <T as SystemConfig>::RuntimeCall =
 			frame_system::Call::<T>::remark { remark: vec![] }.into();
 		Proxy::<T>::announce(
 			RawOrigin::Signed(caller.clone()).into(),
@@ -184,7 +184,7 @@ mod benchmarks {
 		// ... and "real" is the traditional caller. This is not a typo.
 		let real: T::AccountId = whitelisted_caller();
 		let real_lookup = T::Lookup::unlookup(real.clone());
-		let call: <T as Config>::RuntimeCall =
+		let call: <T as SystemConfig>::RuntimeCall =
 			frame_system::Call::<T>::remark { remark: vec![] }.into();
 		Proxy::<T>::announce(
 			RawOrigin::Signed(caller.clone()).into(),
@@ -215,7 +215,7 @@ mod benchmarks {
 		let real: T::AccountId = whitelisted_caller();
 		let real_lookup = T::Lookup::unlookup(real.clone());
 		add_announcements::<T>(a, Some(caller.clone()), None)?;
-		let call: <T as Config>::RuntimeCall =
+		let call: <T as SystemConfig>::RuntimeCall =
 			frame_system::Call::<T>::remark { remark: vec![] }.into();
 		let call_hash = T::CallHasher::hash_of(&call);
 

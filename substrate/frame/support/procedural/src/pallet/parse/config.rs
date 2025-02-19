@@ -17,8 +17,9 @@
 
 use super::helper;
 use frame_support_procedural_tools::{get_cfg_attributes, get_doc_literals, is_using_frame_crate};
+use proc_macro_warning::Warning;
 use quote::ToTokens;
-use syn::{spanned::Spanned, token, Token, TraitItemType};
+use syn::{parse_quote, spanned::Spanned, token, Token, TraitItemType};
 
 /// List of additional token to be used for parsing.
 mod keyword {
@@ -58,11 +59,6 @@ pub struct ConfigDef {
 	pub consts_metadata: Vec<ConstMetadataDef>,
 	/// Associated types metadata.
 	pub associated_types_metadata: Vec<AssociatedTypeMetadataDef>,
-	/// Whether the trait has the associated type `Event`, note that those bounds are
-	/// checked:
-	/// * `IsType<Self as frame_system::Config>::RuntimeEvent`
-	/// * `From<Event>` or `From<Event<T>>` or `From<Event<T, I>>`
-	pub has_event_type: bool,
 	/// The where clause on trait definition but modified so `Self` is `T`.
 	pub where_clause: Option<syn::WhereClause>,
 	/// Whether a default sub-trait should be generated.
@@ -71,6 +67,8 @@ pub struct ConfigDef {
 	/// Vec will be empty if `#[pallet::config(with_default)]` is not specified or if there are
 	/// no trait items.
 	pub default_sub_trait: Option<DefaultTrait>,
+	/// Compile time warnings. Mainly for deprecated items.
+	pub warnings: Vec<Warning>,
 }
 
 /// Input definition for an associated type in pallet config.
@@ -295,6 +293,16 @@ fn check_event_type(
 	Ok(true)
 }
 
+/// Check if trait item is `type RuntimeCall`
+fn check_runtime_call(trait_item: &syn::TraitItem) -> bool {
+	let syn::TraitItem::Type(type_) = trait_item else { return false };
+
+	if type_.ident != "RuntimeCall" {
+		return false
+	}
+	true
+}
+
 /// Check that the path to `frame_system::Config` is valid, this is that the path is just
 /// `frame_system::Config` or when using the `frame` crate it is
 /// `polkadot_sdk_frame::xyz::frame_system::Config`.
@@ -373,6 +381,7 @@ impl ConfigDef {
 		item: &mut syn::Item,
 		enable_default: bool,
 		disable_associated_metadata: bool,
+		is_frame_system: bool,
 	) -> syn::Result<Self> {
 		let syn::Item::Trait(item) = item else {
 			let msg = "Invalid pallet::config, expected trait definition";
@@ -406,30 +415,54 @@ impl ConfigDef {
 			false
 		};
 
-		let has_frame_system_supertrait = item.supertraits.iter().any(|s| {
-			syn::parse2::<syn::Path>(s.to_token_stream())
-				.map_or(false, |b| has_expected_system_config(b, frame_system))
-		});
-
-		let mut has_event_type = false;
 		let mut consts_metadata = vec![];
 		let mut associated_types_metadata = vec![];
+		let mut warnings = vec![];
 		let mut default_sub_trait = if enable_default {
-			Some(DefaultTrait {
-				items: Default::default(),
-				has_system: has_frame_system_supertrait,
-			})
+			Some(DefaultTrait { items: Default::default(), has_system: !is_frame_system })
 		} else {
 			None
 		};
 		for trait_item in &mut item.items {
 			let is_event = check_event_type(frame_system, trait_item, has_instance)?;
-			has_event_type = has_event_type || is_event;
+			let is_runtime_call = check_runtime_call(trait_item);
 
 			let mut already_no_default = false;
 			let mut already_constant = false;
 			let mut already_no_default_bounds = false;
 			let mut already_collected_associated_type = None;
+
+			// add deprecation notice for `RuntimeEvent`, iff pallet is not `frame_system`
+			if !is_frame_system {
+				if let syn::TraitItem::Type(trait_item) = trait_item {
+					let allow_dep: syn::Attribute = parse_quote!(#[allow(deprecated)]);
+					if !trait_item.attrs.iter().any(|attr| attr == &allow_dep) {
+						if is_event {
+							// Check if the `#[allow(deprecated)]` attribute is present
+							let warning = Warning::new_deprecated("RuntimeEvent")
+							.old("have `RuntimeEvent` associated type in the pallet config")
+							.new("remove it as it is redundant since associated bound gets appended automatically: \n
+								pub trait Config: frame_system::Config<RuntimeEvent: From<Event<Self>>> { }")
+							.help_link("https://github.com/paritytech/polkadot-sdk/pull/7229")
+							.span(trait_item.ident.span())
+							.build_or_panic();
+
+							warnings.push(warning);
+						}
+						if is_runtime_call {
+							let warning = Warning::new_deprecated("RuntimeCall")
+							.old("have `RuntimeCall` associated type in the pallet config")
+							.new("use `frame_system::Config::RuntimeCall` directly or define associated bounds: \n
+								pub trait Config: frame_system::Config<RuntimeCall: From<Call<Self>>> { }")
+							.help_link("https://github.com/paritytech/polkadot-sdk/pull/7229")
+							.span(trait_item.ident.span())
+							.build_or_panic();
+
+							warnings.push(warning);
+						}
+					}
+				}
+			}
 
 			while let Ok(Some(pallet_attr)) =
 				helper::take_first_item_pallet_attr::<PalletAttr>(trait_item)
@@ -558,6 +591,11 @@ impl ConfigDef {
 			helper::take_first_item_pallet_attr(&mut item.attrs)?;
 		let disable_system_supertrait_check = attr.is_some();
 
+		let has_frame_system_supertrait = item.supertraits.iter().any(|s| {
+			syn::parse2::<syn::Path>(s.to_token_stream())
+				.map_or(false, |b| has_expected_system_config(b, frame_system))
+		});
+
 		if !has_frame_system_supertrait && !disable_system_supertrait_check {
 			let found = if item.supertraits.is_empty() {
 				"none".to_string()
@@ -588,9 +626,9 @@ impl ConfigDef {
 			has_instance,
 			consts_metadata,
 			associated_types_metadata,
-			has_event_type,
 			where_clause,
 			default_sub_trait,
+			warnings,
 		})
 	}
 }
@@ -711,5 +749,23 @@ mod tests {
 		let frame_system = syn::parse2::<syn::Path>(quote::quote!(something)).unwrap();
 		let path = syn::parse2::<syn::Path>(quote::quote!(something::Config)).unwrap();
 		assert!(!has_expected_system_config(path, &frame_system));
+	}
+
+	#[test]
+	fn check_runtime_call_works() {
+		let trait_item = syn::parse2::<syn::TraitItem>(quote::quote!(type RuntimeCall: From<Call<Self>>;)).unwrap();
+		assert!(check_runtime_call(&trait_item));
+	}
+
+	#[test]
+	fn check_runtime_call_invalid_name() {
+		let trait_item = syn::parse2::<syn::TraitItem>(quote::quote!{type RuntimeCalls: From<Call<Self>>;}).unwrap();
+		assert!(!check_runtime_call(&trait_item));
+	}
+
+	#[test]
+	fn check_runtime_call_invalid_type() {
+		let trait_item = syn::parse2::<syn::TraitItem>(quote::quote!{const RuntimeCall: u32;}).unwrap();
+		assert!(!check_runtime_call(&trait_item));
 	}
 }

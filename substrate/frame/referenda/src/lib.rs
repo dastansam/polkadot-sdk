@@ -157,13 +157,17 @@ pub mod pallet {
 	pub struct Pallet<T, I = ()>(_);
 
 	#[pallet::config]
-	pub trait Config<I: 'static = ()>: frame_system::Config + Sized {
+	pub trait Config<I: 'static = ()>:
+		frame_system::Config<RuntimeCall: From<Call<Self, I>>> + Sized
+	{
 		// System level stuff.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin>
 			+ From<Call<Self, I>>
 			+ IsType<<Self as frame_system::Config>::RuntimeCall>
 			+ From<frame_system::Call<Self>>;
+		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self, I>>
 			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// Weight information for extrinsics in this pallet.
@@ -171,12 +175,12 @@ pub mod pallet {
 		/// The Scheduler.
 		type Scheduler: ScheduleAnon<
 				BlockNumberFor<Self, I>,
-				CallOf<Self, I>,
+				CallOf<Self>,
 				PalletsOriginOf<Self>,
 				Hasher = Self::Hashing,
 			> + ScheduleNamed<
 				BlockNumberFor<Self, I>,
-				CallOf<Self, I>,
+				CallOf<Self>,
 				PalletsOriginOf<Self>,
 				Hasher = Self::Hashing,
 			>;
@@ -296,7 +300,7 @@ pub mod pallet {
 			/// The track (and by extension proposal dispatch origin) of this referendum.
 			track: TrackIdOf<T, I>,
 			/// The proposal for the referendum.
-			proposal: BoundedCallOf<T, I>,
+			proposal: BoundedCallOf<T>,
 		},
 		/// The decision deposit has been placed.
 		DecisionDepositPlaced {
@@ -330,7 +334,7 @@ pub mod pallet {
 			/// The track (and by extension proposal dispatch origin) of this referendum.
 			track: TrackIdOf<T, I>,
 			/// The proposal for the referendum.
-			proposal: BoundedCallOf<T, I>,
+			proposal: BoundedCallOf<T>,
 			/// The current tally of votes in this referendum.
 			tally: T::Tally,
 		},
@@ -469,7 +473,7 @@ pub mod pallet {
 		pub fn submit(
 			origin: OriginFor<T>,
 			proposal_origin: Box<PalletsOriginOf<T>>,
-			proposal: BoundedCallOf<T, I>,
+			proposal: BoundedCallOf<T>,
 			enactment_moment: DispatchTime<BlockNumberFor<T, I>>,
 		) -> DispatchResult {
 			let proposal_origin = *proposal_origin;
@@ -495,7 +499,7 @@ pub mod pallet {
 			});
 			let now = T::BlockNumberProvider::current_block_number();
 			let nudge_call =
-				T::Preimages::bound(CallOf::<T, I>::from(Call::nudge_referendum { index }))?;
+				T::Preimages::bound(CallOf::<T>::from(Call::nudge_referendum { index }))?;
 			let status = ReferendumStatus {
 				track,
 				origin: proposal_origin,
@@ -815,8 +819,10 @@ impl<T: Config<I>, I: 'static> Polling<T::Tally> for Pallet<T, I> {
 		let mut status = ReferendumStatusOf::<T, I> {
 			track: class,
 			origin: frame_support::dispatch::RawOrigin::Root.into(),
-			proposal: T::Preimages::bound(CallOf::<T, I>::from(Call::nudge_referendum { index }))
-				.map_err(|_| ())?,
+			proposal: T::Preimages::bound(CallOf::<T>::from(
+				Call::nudge_referendum { index }.into(),
+			))
+			.map_err(|_| ())?,
 			enactment: DispatchTime::After(Zero::zero()),
 			submitted: now,
 			submission_deposit: Deposit { who: dummy_account_id, amount: Zero::zero() },
@@ -899,7 +905,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		track: &TrackInfoOf<T, I>,
 		desired: DispatchTime<BlockNumberFor<T, I>>,
 		origin: PalletsOriginOf<T>,
-		call: BoundedCallOf<T, I>,
+		call: BoundedCallOf<T>,
 	) {
 		let now = T::BlockNumberProvider::current_block_number();
 		// Earliest allowed block is always at minimum the next block.
@@ -919,7 +925,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 
 	/// Set an alarm to dispatch `call` at block number `when`.
 	fn set_alarm(
-		call: BoundedCallOf<T, I>,
+		call: BoundedCallOf<T>,
 		when: BlockNumberFor<T, I>,
 	) -> Option<(BlockNumberFor<T, I>, ScheduleAddressOf<T, I>)> {
 		let alarm_interval = T::AlarmInterval::get().max(One::one());
@@ -1033,15 +1039,18 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		// Set an alarm call for the next block to nudge the track along.
 		let now = T::BlockNumberProvider::current_block_number();
 		let next_block = now + One::one();
-		let call = match T::Preimages::bound(CallOf::<T, I>::from(Call::one_fewer_deciding {
-			track,
-		})) {
-			Ok(c) => c,
-			Err(_) => {
-				debug_assert!(false, "Unable to create a bounded call from `one_fewer_deciding`??",);
-				return
-			},
-		};
+		let call =
+			match T::Preimages::bound(CallOf::<T>::from(Call::one_fewer_deciding { track }.into()))
+			{
+				Ok(c) => c,
+				Err(_) => {
+					debug_assert!(
+						false,
+						"Unable to create a bounded call from `one_fewer_deciding`??",
+					);
+					return
+				},
+			};
 		Self::set_alarm(call, next_block);
 	}
 
@@ -1058,17 +1067,18 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		if status.alarm.as_ref().map_or(true, |&(when, _)| when != alarm) {
 			// Either no alarm or one that was different
 			Self::ensure_no_alarm(status);
-			let call =
-				match T::Preimages::bound(CallOf::<T, I>::from(Call::nudge_referendum { index })) {
-					Ok(c) => c,
-					Err(_) => {
-						debug_assert!(
-							false,
-							"Unable to create a bounded call from `nudge_referendum`??",
-						);
-						return false
-					},
-				};
+			let call = match T::Preimages::bound(CallOf::<T>::from(
+				Call::nudge_referendum { index }.into(),
+			)) {
+				Ok(c) => c,
+				Err(_) => {
+					debug_assert!(
+						false,
+						"Unable to create a bounded call from `nudge_referendum`??",
+					);
+					return false
+				},
+			};
 			status.alarm = Self::set_alarm(call, alarm);
 			true
 		} else {

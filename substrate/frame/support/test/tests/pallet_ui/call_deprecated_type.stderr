@@ -1,0 +1,15 @@
+error: use of deprecated constant `pallet::RuntimeCall::_w`:
+               It is deprecated to have `RuntimeCall` associated type in the pallet config.
+               Please instead use `frame_system::Config::RuntimeCall` directly or define associated bounds:
+
+               pub trait Config: frame_system::Config<RuntimeCall: From<Call<Self>>> { }.
+
+               For more info see:
+                   <https://github.com/paritytech/polkadot-sdk/pull/7229>
+  --> tests/pallet_ui/call_deprecated_type.rs:30:8
+   |
+30 |         type RuntimeCall: From<Call<Self>>;
+   |              ^^^^^^^^^^^
+   |
+   = note: `-D deprecated` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(deprecated)]`

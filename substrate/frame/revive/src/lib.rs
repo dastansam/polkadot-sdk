@@ -125,7 +125,11 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config(with_default)]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>,
+	>
+	{
 		/// The time implementation used to supply timestamps to contracts through `seal_now`.
 		type Time: Time;
 
@@ -137,9 +141,11 @@ pub mod pallet {
 
 		/// The overarching event type.
 		#[pallet::no_default_bounds]
+		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The overarching call type.
+		#[allow(deprecated)]
 		#[pallet::no_default_bounds]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
@@ -951,7 +957,7 @@ pub mod pallet {
 		})]
 		pub fn dispatch_as_fallback_account(
 			origin: OriginFor<T>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			let origin = ensure_signed(origin)?;
 			let unmapped_account =
@@ -1118,8 +1124,8 @@ where
 	where
 		<T as frame_system::Config>::RuntimeCall:
 			Dispatchable<Info = frame_support::dispatch::DispatchInfo>,
-		<T as Config>::RuntimeCall: From<crate::Call<T>>,
-		<T as Config>::RuntimeCall: Encode,
+		<T as frame_system::Config>::RuntimeCall: From<crate::Call<T>>,
+		<T as frame_system::Config>::RuntimeCall: Encode,
 		T::Nonce: Into<U256>,
 		T::Hash: frame_support::traits::IsType<H256>,
 	{
@@ -1212,14 +1218,15 @@ where
 					result.gas_required,
 					result.storage_deposit,
 				);
-				let dispatch_call: <T as Config>::RuntimeCall = crate::Call::<T>::call {
-					dest,
-					value: native_value,
-					gas_limit,
-					storage_deposit_limit,
-					data: input.clone(),
-				}
-				.into();
+				let dispatch_call: <T as frame_system::Config>::RuntimeCall =
+					crate::Call::<T>::call {
+						dest,
+						value: native_value,
+						gas_limit,
+						storage_deposit_limit,
+						data: input.clone(),
+					}
+					.into();
 				(result, dispatch_call.get_dispatch_info())
 			},
 			// A contract deployment
@@ -1273,7 +1280,7 @@ where
 					result.gas_required,
 					result.storage_deposit,
 				);
-				let dispatch_call: <T as Config>::RuntimeCall =
+				let dispatch_call: <T as frame_system::Config>::RuntimeCall =
 					crate::Call::<T>::instantiate_with_code {
 						value: native_value,
 						gas_limit,

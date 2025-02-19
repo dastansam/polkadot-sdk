@@ -250,6 +250,7 @@ pub mod pallet_with_specific_runtime_call {
 	/// A pallet that wants to further narrow down what `RuntimeCall` is.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
+		#[allow(deprecated)]
 		type RuntimeCall: IsSubType<Call<Self>>;
 	}
 

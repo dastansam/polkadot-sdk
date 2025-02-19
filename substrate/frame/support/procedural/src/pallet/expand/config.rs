@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::pallet::Def;
+use crate::pallet::{parse::GenericKind, Def};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse_quote, Item};
@@ -47,6 +47,29 @@ Consequently, a runtime that wants to include this pallet must implement this tr
 			]
 		),
 	);
+
+	// insert `frame_system::Config` supertrait with `RuntimeEvent: From<Event<Self>>` if neither
+	// associated type nor type bound is defined.
+	if let Some(event) = &def.event {
+		if !def.is_frame_system {
+			let frame_system = &def.frame_system;
+
+			// can't use `type_use_gen()` since it returns `T`, not `Self`
+			let event_use_gen = match event.gen_kind {
+				GenericKind::None => quote!(),
+				GenericKind::Config => quote::quote_spanned! {event.attr_span => Self},
+				GenericKind::ConfigAndInstance =>
+					quote::quote_spanned! {event.attr_span => Self, I},
+			};
+
+			let supertrait_with_event_bound = syn::parse2::<syn::TypeParamBound>(
+				quote! { #frame_system::Config<RuntimeEvent: From<Event<#event_use_gen>>> },
+			)
+			.expect("should be possible to parse system supertrait");
+
+			config_item.supertraits.push(supertrait_with_event_bound.into());
+		}
+	}
 
 	// we only emit `DefaultConfig` if there are trait items, so an empty `DefaultConfig` is
 	// impossible consequently.
@@ -92,7 +115,7 @@ Consequently, a runtime that wants to include this pallet must implement this tr
 				}
 			)
 		},
-		_ => Default::default(),
+		_ => quote!(),
 	}
 }
 
@@ -133,7 +156,6 @@ pub fn expand_config_metadata(def: &Def) -> proc_macro2::TokenStream {
 
 	quote::quote!(
 		impl<#type_impl_gen> #pallet_ident<#type_use_gen> #completed_where_clause {
-
 			#[doc(hidden)]
 			pub fn pallet_associated_types_metadata()
 				-> #frame_support::__private::vec::Vec<#frame_support::__private::metadata_ir::PalletAssociatedTypeMetadataIR>

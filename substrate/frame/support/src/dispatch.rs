@@ -728,6 +728,7 @@ mod weight_tests {
 			type Balance;
 			type BaseCallFilter: crate::traits::Contains<Self::RuntimeCall>;
 			type RuntimeOrigin;
+			#[allow(deprecated)]
 			type RuntimeCall;
 			type RuntimeTask;
 			type PalletInfo: crate::traits::PalletInfo;

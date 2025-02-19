@@ -82,11 +82,21 @@ pub mod pallet {
 
 	/// Configuration trait.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: IsSubType<Call<Self>>
+		                 + Dispatchable<
+			RuntimeOrigin = Self::RuntimeOrigin,
+			PostInfo = PostDispatchInfo,
+		> + UnfilteredDispatchable<RuntimeOrigin = Self::RuntimeOrigin>,
+	>
+	{
 		/// The overarching event type.
+		#[allow(deprecated)]
 		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The overarching call type.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
 			+ GetDispatchInfo
@@ -133,9 +143,10 @@ pub mod pallet {
 		/// The limit on the number of batched calls.
 		fn batched_calls_limit() -> u32 {
 			let allocator_limit = sp_core::MAX_POSSIBLE_ALLOCATION;
-			let call_size = ((core::mem::size_of::<<T as Config>::RuntimeCall>() as u32 +
-				CALL_ALIGN - 1) /
-				CALL_ALIGN) * CALL_ALIGN;
+			let call_size = ((core::mem::size_of::<<T as frame_system::Config>::RuntimeCall>()
+				as u32 + CALL_ALIGN -
+				1) / CALL_ALIGN) *
+				CALL_ALIGN;
 			// The margin to take into account vec doubling capacity.
 			let margin_factor = 3;
 
@@ -148,7 +159,8 @@ pub mod pallet {
 		fn integrity_test() {
 			// If you hit this error, you need to try to `Box` big dispatchable parameters.
 			assert!(
-				core::mem::size_of::<<T as Config>::RuntimeCall>() as u32 <= CALL_ALIGN,
+				core::mem::size_of::<<T as frame_system::Config>::RuntimeCall>() as u32 <=
+					CALL_ALIGN,
 				"Call enum size should be smaller than {} bytes.",
 				CALL_ALIGN,
 			);
@@ -189,7 +201,7 @@ pub mod pallet {
 		})]
 		pub fn batch(
 			origin: OriginFor<T>,
-			calls: Vec<<T as Config>::RuntimeCall>,
+			calls: Vec<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			// Do not allow the `None` origin.
 			if ensure_none(origin.clone()).is_ok() {
@@ -256,7 +268,7 @@ pub mod pallet {
 		pub fn as_derivative(
 			origin: OriginFor<T>,
 			index: u16,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			let mut origin = origin;
 			let who = ensure_signed(origin.clone())?;
@@ -298,7 +310,7 @@ pub mod pallet {
 		})]
 		pub fn batch_all(
 			origin: OriginFor<T>,
-			calls: Vec<<T as Config>::RuntimeCall>,
+			calls: Vec<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			// Do not allow the `None` origin.
 			if ensure_none(origin.clone()).is_ok() {
@@ -321,7 +333,6 @@ pub mod pallet {
 					// Don't allow users to nest `batch_all` calls.
 					filtered_origin.add_filter(
 						move |c: &<T as frame_system::Config>::RuntimeCall| {
-							let c = <T as Config>::RuntimeCall::from_ref(c);
 							!matches!(c.is_sub_type(), Some(Call::batch_all { .. }))
 						},
 					);
@@ -361,7 +372,7 @@ pub mod pallet {
 		pub fn dispatch_as(
 			origin: OriginFor<T>,
 			as_origin: Box<T::PalletsOrigin>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 
@@ -394,7 +405,7 @@ pub mod pallet {
 		})]
 		pub fn force_batch(
 			origin: OriginFor<T>,
-			calls: Vec<<T as Config>::RuntimeCall>,
+			calls: Vec<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			// Do not allow the `None` origin.
 			if ensure_none(origin.clone()).is_ok() {
@@ -445,7 +456,7 @@ pub mod pallet {
 		#[pallet::weight((*weight, call.get_dispatch_info().class))]
 		pub fn with_weight(
 			origin: OriginFor<T>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 			weight: Weight,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -459,7 +470,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Get the accumulated `weight` and the dispatch class for the given `calls`.
 		fn weight_and_dispatch_class(
-			calls: &[<T as Config>::RuntimeCall],
+			calls: &[<T as frame_system::Config>::RuntimeCall],
 		) -> (Weight, DispatchClass) {
 			let dispatch_infos = calls.iter().map(|call| call.get_dispatch_info());
 			let (dispatch_weight, dispatch_class) = dispatch_infos.fold(

@@ -15,15 +15,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub trait WeightInfo {
+	fn foo() -> sp_runtime::Weight;
+}
+
 #[frame_support::pallet]
 mod pallet {
-	use frame_support::pallet_prelude::{Hooks, IsType};
-	use frame_system::pallet_prelude::BlockNumberFor;
+    use crate::WeightInfo;
+	use frame_support::pallet_prelude::{DispatchResultWithPostInfo, Hooks};
+	use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Bar;
-		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type RuntimeCall: From<Call<Self>>;
+		type WeightInfo: crate::WeightInfo;
 	}
 
 	#[pallet::pallet]
@@ -33,13 +38,13 @@ mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
-
-	#[pallet::event]
-	pub enum Event<T: Config> {
-		B { b: T::Bar },
-	}
+	impl<T: Config> Pallet<T> {
+		#[pallet::weight(T::WeightInfo::foo())]
+		#[pallet::call_index(0)]
+		pub fn foo(_origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+            todo!()
+        }
+    }
 }
 
-fn main() {
-}
+fn main() {}

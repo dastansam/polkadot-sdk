@@ -37,9 +37,9 @@ pub type BlockNumberFor<T, I> =
 pub type NegativeImbalanceOf<T, I> = <<T as Config<I>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
-pub type CallOf<T, I> = <T as Config<I>>::RuntimeCall;
-pub type BoundedCallOf<T, I> =
-	Bounded<<T as Config<I>>::RuntimeCall, <T as frame_system::Config>::Hashing>;
+pub type CallOf<T> = <T as frame_system::Config>::RuntimeCall;
+pub type BoundedCallOf<T> =
+	Bounded<<T as frame_system::Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
 pub type VotesOf<T, I> = <T as Config<I>>::Votes;
 pub type TallyOf<T, I> = <T as Config<I>>::Tally;
 pub type PalletsOriginOf<T> =
@@ -48,7 +48,7 @@ pub type ReferendumInfoOf<T, I> = ReferendumInfo<
 	TrackIdOf<T, I>,
 	PalletsOriginOf<T>,
 	BlockNumberFor<T, I>,
-	BoundedCallOf<T, I>,
+	BoundedCallOf<T>,
 	BalanceOf<T, I>,
 	TallyOf<T, I>,
 	<T as frame_system::Config>::AccountId,
@@ -58,7 +58,7 @@ pub type ReferendumStatusOf<T, I> = ReferendumStatus<
 	TrackIdOf<T, I>,
 	PalletsOriginOf<T>,
 	BlockNumberFor<T, I>,
-	BoundedCallOf<T, I>,
+	BoundedCallOf<T>,
 	BalanceOf<T, I>,
 	TallyOf<T, I>,
 	<T as frame_system::Config>::AccountId,
@@ -70,7 +70,7 @@ pub type TrackIdOf<T, I> =
 	<<T as Config<I>>::Tracks as TracksInfo<BalanceOf<T, I>, BlockNumberFor<T, I>>>::Id;
 pub type ScheduleAddressOf<T, I> = <<T as Config<I>>::Scheduler as Anon<
 	BlockNumberFor<T, I>,
-	CallOf<T, I>,
+	CallOf<T>,
 	PalletsOriginOf<T>,
 >>::Address;
 

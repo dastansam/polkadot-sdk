@@ -390,7 +390,10 @@ pub trait Ext: sealing::Sealed {
 	fn charge_storage(&mut self, diff: &Diff);
 
 	/// Call some dispatchable and return the result.
-	fn call_runtime(&self, call: <Self::T as Config>::RuntimeCall) -> DispatchResultWithPostInfo;
+	fn call_runtime(
+		&self,
+		call: <Self::T as frame_system::Config>::RuntimeCall,
+	) -> DispatchResultWithPostInfo;
 
 	/// Recovers ECDSA compressed public key based on signature and message hash.
 	fn ecdsa_recover(&self, signature: &[u8; 65], message_hash: &[u8; 32]) -> Result<[u8; 33], ()>;
@@ -1744,7 +1747,10 @@ where
 		self.top_frame_mut().nested_storage.charge(diff)
 	}
 
-	fn call_runtime(&self, call: <Self::T as Config>::RuntimeCall) -> DispatchResultWithPostInfo {
+	fn call_runtime(
+		&self,
+		call: <Self::T as frame_system::Config>::RuntimeCall,
+	) -> DispatchResultWithPostInfo {
 		let mut origin: T::RuntimeOrigin = RawOrigin::Signed(self.account_id().clone()).into();
 		origin.add_filter(T::CallFilter::contains);
 		call.dispatch(origin)
