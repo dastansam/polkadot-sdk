@@ -113,7 +113,7 @@ where
 type CallHash = [u8; 32];
 
 enum CallOrHash<T: Config> {
-	Call(<T as Config>::RuntimeCall),
+	Call(<T as frame_system::Config>::RuntimeCall),
 	Hash([u8; 32]),
 }
 
@@ -122,12 +122,21 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: From<Call<Self>>
+		                 + Dispatchable<
+			RuntimeOrigin = Self::RuntimeOrigin,
+			PostInfo = PostDispatchInfo,
+		>,
+	>
+	{
 		/// The overarching event type.
 		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The overarching call type.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
 			+ GetDispatchInfo
@@ -272,7 +281,7 @@ pub mod pallet {
 		pub fn as_multi_threshold_1(
 			origin: OriginFor<T>,
 			other_signatories: Vec<T::AccountId>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			let max_sigs = T::MaxSignatories::get() as usize;
@@ -361,7 +370,7 @@ pub mod pallet {
 			threshold: u16,
 			other_signatories: Vec<T::AccountId>,
 			maybe_timepoint: Option<Timepoint<BlockNumberFor<T>>>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 			max_weight: Weight,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;

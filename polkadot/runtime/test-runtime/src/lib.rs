@@ -696,11 +696,12 @@ pub mod pallet_test_notifier {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_xcm::Config {
+	pub trait Config: frame_system::Config<RuntimeCall: From<Call<Self>>> + pallet_xcm::Config {
 		#[allow(deprecated)]
 		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent> + From<Event<Self>>;
 		type RuntimeOrigin: IsType<<Self as frame_system::Config>::RuntimeOrigin>
 			+ Into<Result<pallet_xcm::Origin, <Self as Config>::RuntimeOrigin>>;
+		#[allow(deprecated)]
 		type RuntimeCall: IsType<<Self as pallet_xcm::Config>::RuntimeCall> + From<Call<Self>>;
 	}
 
@@ -747,7 +748,7 @@ pub mod pallet_test_notifier {
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
 				Junction::AccountId32 { network: None, id },
-				<T as Config>::RuntimeCall::from(call),
+				<T as frame_system::Config>::RuntimeCall::from(call.into()),
 				100u32.into(),
 				Here,
 			);

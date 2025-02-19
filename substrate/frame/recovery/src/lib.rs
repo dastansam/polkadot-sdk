@@ -236,6 +236,7 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 
 		/// The overarching call type.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
 			+ GetDispatchInfo
@@ -392,7 +393,7 @@ pub mod pallet {
 		pub fn as_recovered(
 			origin: OriginFor<T>,
 			account: AccountIdLookupOf<T>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let account = T::Lookup::lookup(account)?;

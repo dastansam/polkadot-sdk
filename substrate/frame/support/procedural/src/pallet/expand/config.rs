@@ -156,7 +156,6 @@ pub fn expand_config_metadata(def: &Def) -> proc_macro2::TokenStream {
 
 	quote::quote!(
 		impl<#type_impl_gen> #pallet_ident<#type_use_gen> #completed_where_clause {
-
 			#[doc(hidden)]
 			pub fn pallet_associated_types_metadata()
 				-> #frame_support::__private::vec::Vec<#frame_support::__private::metadata_ir::PalletAssociatedTypeMetadataIR>

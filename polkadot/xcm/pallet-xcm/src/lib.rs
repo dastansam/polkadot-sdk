@@ -43,7 +43,10 @@ use frame_support::{
 	},
 	PalletId,
 };
-use frame_system::pallet_prelude::{BlockNumberFor, *};
+use frame_system::{
+	pallet_prelude::{BlockNumberFor, *},
+	Config as SystemConfig,
+};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -187,10 +190,7 @@ impl WeightInfo for TestWeightInfo {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{
-		dispatch::{GetDispatchInfo, PostDispatchInfo},
-		parameter_types,
-	};
+	use frame_support::{dispatch::PostDispatchInfo, parameter_types};
 	use frame_system::Config as SysConfig;
 	use sp_core::H256;
 	use sp_runtime::traits::Dispatchable;
@@ -214,7 +214,14 @@ pub mod pallet {
 
 	#[pallet::config]
 	/// The module configuration trait.
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: Dispatchable<
+			RuntimeOrigin = <Self as Config>::RuntimeOrigin,
+			PostInfo = PostDispatchInfo,
+		>,
+	>
+	{
 		/// The overarching event type.
 		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -239,10 +246,12 @@ pub mod pallet {
 		type ExecuteXcmOrigin: EnsureOrigin<<Self as SysConfig>::RuntimeOrigin, Success = Location>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
-		type XcmExecuteFilter: Contains<(Location, Xcm<<Self as Config>::RuntimeCall>)>;
+		type XcmExecuteFilter: Contains<(Location, Xcm<<Self as SystemConfig>::RuntimeCall>)>;
 
 		/// Something to execute an XCM message.
-		type XcmExecutor: ExecuteXcm<<Self as Config>::RuntimeCall> + XcmAssetTransfers + FeeManager;
+		type XcmExecutor: ExecuteXcm<<Self as SystemConfig>::RuntimeCall>
+			+ XcmAssetTransfers
+			+ FeeManager;
 
 		/// Our XCM filter which messages to be teleported using the dedicated extrinsic must pass.
 		type XcmTeleportFilter: Contains<(Location, Vec<Asset>)>;
@@ -252,7 +261,7 @@ pub mod pallet {
 		type XcmReserveTransferFilter: Contains<(Location, Vec<Asset>)>;
 
 		/// Means of measuring the weight consumed by an XCM message locally.
-		type Weigher: WeightBounds<<Self as Config>::RuntimeCall>;
+		type Weigher: WeightBounds<<Self as SystemConfig>::RuntimeCall>;
 
 		/// This chain's Universal Location.
 		type UniversalLocation: Get<InteriorLocation>;
@@ -261,6 +270,7 @@ pub mod pallet {
 		type RuntimeOrigin: From<Origin> + From<<Self as SysConfig>::RuntimeOrigin>;
 
 		/// The runtime `Call` type.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ GetDispatchInfo
 			+ Dispatchable<
@@ -303,11 +313,11 @@ pub mod pallet {
 		}
 	}
 
-	impl<T: Config> ExecuteController<OriginFor<T>, <T as Config>::RuntimeCall> for Pallet<T> {
+	impl<T: Config> ExecuteController<OriginFor<T>, <T as SystemConfig>::RuntimeCall> for Pallet<T> {
 		type WeightInfo = Self;
 		fn execute(
 			origin: OriginFor<T>,
-			message: Box<VersionedXcm<<T as Config>::RuntimeCall>>,
+			message: Box<VersionedXcm<<T as SystemConfig>::RuntimeCall>>,
 			max_weight: Weight,
 		) -> Result<Weight, DispatchErrorWithPostInfo> {
 			tracing::trace!(target: "xcm::pallet_xcm::execute", ?message, ?max_weight);
@@ -1043,7 +1053,7 @@ pub mod pallet {
 		#[pallet::weight(max_weight.saturating_add(T::WeightInfo::execute()))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<VersionedXcm<<T as Config>::RuntimeCall>>,
+			message: Box<VersionedXcm<<T as SystemConfig>::RuntimeCall>>,
 			max_weight: Weight,
 		) -> DispatchResultWithPostInfo {
 			let weight_used =
@@ -1442,7 +1452,7 @@ enum FeesHandling<T: Config> {
 	/// `fees` asset can be batch-transferred with rest of assets using same XCM instructions.
 	Batched { fees: Asset },
 	/// fees cannot be batched, they are handled separately using XCM programs here.
-	Separate { local_xcm: Xcm<<T as Config>::RuntimeCall>, remote_xcm: Xcm<()> },
+	Separate { local_xcm: Xcm<<T as SystemConfig>::RuntimeCall>, remote_xcm: Xcm<()> },
 }
 
 impl<T: Config> core::fmt::Debug for FeesHandling<T> {
@@ -1720,7 +1730,7 @@ impl<T: Config> Pallet<T> {
 		transfer_type: TransferType,
 		fees: FeesHandling<T>,
 		weight_limit: WeightLimit,
-	) -> Result<(Xcm<<T as Config>::RuntimeCall>, Option<Xcm<()>>), Error<T>> {
+	) -> Result<(Xcm<<T as SystemConfig>::RuntimeCall>, Option<Xcm<()>>), Error<T>> {
 		tracing::debug!(
 			target: "xcm::pallet_xcm::build_xcm_transfer_type",
 			?origin, ?dest, ?beneficiary, ?assets, ?transfer_type, ?fees, ?weight_limit,
@@ -1775,7 +1785,7 @@ impl<T: Config> Pallet<T> {
 	fn execute_xcm_transfer(
 		origin: Location,
 		dest: Location,
-		mut local_xcm: Xcm<<T as Config>::RuntimeCall>,
+		mut local_xcm: Xcm<<T as SystemConfig>::RuntimeCall>,
 		remote_xcm: Option<Xcm<()>>,
 	) -> DispatchResult {
 		tracing::debug!(
@@ -1833,7 +1843,7 @@ impl<T: Config> Pallet<T> {
 		dest: Location,
 		fees: FeesHandling<T>,
 		weight_limit: WeightLimit,
-		local: &mut Xcm<<T as Config>::RuntimeCall>,
+		local: &mut Xcm<<T as SystemConfig>::RuntimeCall>,
 		remote: &mut Xcm<()>,
 	) -> Result<(), Error<T>> {
 		match fees {
@@ -1867,7 +1877,7 @@ impl<T: Config> Pallet<T> {
 		dest: Location,
 		fees: Asset,
 		weight_limit: WeightLimit,
-	) -> Result<(Xcm<<T as Config>::RuntimeCall>, Xcm<()>), Error<T>> {
+	) -> Result<(Xcm<<T as SystemConfig>::RuntimeCall>, Xcm<()>), Error<T>> {
 		let value = (origin, vec![fees.clone()]);
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 
@@ -1897,7 +1907,7 @@ impl<T: Config> Pallet<T> {
 		assets: Vec<Asset>,
 		fees: FeesHandling<T>,
 		weight_limit: WeightLimit,
-	) -> Result<(Xcm<<T as Config>::RuntimeCall>, Xcm<()>), Error<T>> {
+	) -> Result<(Xcm<<T as SystemConfig>::RuntimeCall>, Xcm<()>), Error<T>> {
 		let value = (origin, assets);
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 		let (_, assets) = value;
@@ -1948,7 +1958,7 @@ impl<T: Config> Pallet<T> {
 		dest: Location,
 		fees: Asset,
 		weight_limit: WeightLimit,
-	) -> Result<(Xcm<<T as Config>::RuntimeCall>, Xcm<()>), Error<T>> {
+	) -> Result<(Xcm<<T as SystemConfig>::RuntimeCall>, Xcm<()>), Error<T>> {
 		let value = (origin, vec![fees.clone()]);
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 		ensure!(
@@ -1988,7 +1998,7 @@ impl<T: Config> Pallet<T> {
 		assets: Vec<Asset>,
 		fees: FeesHandling<T>,
 		weight_limit: WeightLimit,
-	) -> Result<(Xcm<<T as Config>::RuntimeCall>, Xcm<()>), Error<T>> {
+	) -> Result<(Xcm<<T as SystemConfig>::RuntimeCall>, Xcm<()>), Error<T>> {
 		let value = (origin, assets);
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 		let (_, assets) = value;
@@ -2051,7 +2061,7 @@ impl<T: Config> Pallet<T> {
 		assets: Vec<Asset>,
 		fees: Asset,
 		weight_limit: WeightLimit,
-	) -> Result<Xcm<<T as Config>::RuntimeCall>, Error<T>> {
+	) -> Result<Xcm<<T as SystemConfig>::RuntimeCall>, Error<T>> {
 		let value = (origin, assets);
 		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 		let (_, assets) = value;
@@ -2113,7 +2123,7 @@ impl<T: Config> Pallet<T> {
 		dest: Location,
 		fees: Asset,
 		weight_limit: WeightLimit,
-	) -> Result<(Xcm<<T as Config>::RuntimeCall>, Xcm<()>), Error<T>> {
+	) -> Result<(Xcm<<T as SystemConfig>::RuntimeCall>, Xcm<()>), Error<T>> {
 		let value = (origin, vec![fees.clone()]);
 		ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 		ensure!(
@@ -2177,7 +2187,7 @@ impl<T: Config> Pallet<T> {
 		assets: Vec<Asset>,
 		fees: FeesHandling<T>,
 		weight_limit: WeightLimit,
-	) -> Result<(Xcm<<T as Config>::RuntimeCall>, Xcm<()>), Error<T>> {
+	) -> Result<(Xcm<<T as SystemConfig>::RuntimeCall>, Xcm<()>), Error<T>> {
 		let value = (origin, assets);
 		ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 		let (_, assets) = value;
@@ -2748,14 +2758,14 @@ impl<T: Config> Pallet<T> {
 	pub fn report_outcome_notify(
 		message: &mut Xcm<()>,
 		responder: impl Into<Location>,
-		notify: impl Into<<T as Config>::RuntimeCall>,
+		notify: impl Into<<T as SystemConfig>::RuntimeCall>,
 		timeout: BlockNumberFor<T>,
 	) -> Result<(), XcmError> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
 			.map_err(|()| XcmError::LocationNotInvertible)?;
-		let notify: <T as Config>::RuntimeCall = notify.into();
+		let notify: <T as SystemConfig>::RuntimeCall = notify.into();
 		let max_weight = notify.get_dispatch_info().call_weight;
 		let query_id = Self::new_notify_query(responder, notify, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight };
@@ -2768,7 +2778,7 @@ impl<T: Config> Pallet<T> {
 	/// which will call a dispatchable when a response happens.
 	pub fn new_notify_query(
 		responder: impl Into<Location>,
-		notify: impl Into<<T as Config>::RuntimeCall>,
+		notify: impl Into<<T as SystemConfig>::RuntimeCall>,
 		timeout: BlockNumberFor<T>,
 		match_querier: impl Into<Location>,
 	) -> u64 {
@@ -3325,7 +3335,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 						// So we just encode that and then re-encode to a real Call.
 						let bare = (pallet_index, call_index, query_id, response);
 						if let Ok(call) = bare.using_encoded(|mut bytes| {
-							<T as Config>::RuntimeCall::decode(&mut bytes)
+							<T as SystemConfig>::RuntimeCall::decode(&mut bytes)
 						}) {
 							Queries::<T>::remove(query_id);
 							let weight = call.get_dispatch_info().call_weight;

@@ -72,7 +72,7 @@ where
 	<<Runtime as pallet_bridge_grandpa::Config<GPI>>::BridgedChain as bp_runtime::Chain>::Hash:
 		From<ParaHash>,
 	BridgedChainOf<Runtime, MPI>: Chain<Hash = ParaHash> + Parachain,
-	<Runtime as pallet_utility::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
+	<Runtime as frame_system::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
 		+ From<pallet_bridge_parachains::Call<Runtime, PPI>>
 		+ From<pallet_bridge_messages::Call<Runtime, MPI>>,
 {
@@ -122,7 +122,7 @@ where
 	<Runtime as pallet_bridge_grandpa::Config<GPI>>::BridgedChain:
 		bp_runtime::Chain<Hash = RelayBlockHash, BlockNumber = RelayBlockNumber> + ChainWithGrandpa,
 	BridgedChainOf<Runtime, MPI>: Chain<Hash = ParaHash> + Parachain,
-	<Runtime as pallet_utility::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
+	<Runtime as frame_system::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
 		+ From<pallet_bridge_parachains::Call<Runtime, PPI>>
 		+ From<pallet_bridge_messages::Call<Runtime, MPI>>,
 {

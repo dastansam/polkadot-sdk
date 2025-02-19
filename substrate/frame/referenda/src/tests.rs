@@ -268,7 +268,7 @@ fn queueing_works() {
 fn alarm_interval_works() {
 	ExtBuilder::default().build_and_execute(|| {
 		let call =
-			<Test as Config>::Preimages::bound(CallOf::<Test, ()>::from(Call::nudge_referendum {
+			<Test as Config>::Preimages::bound(CallOf::<Test>::from(Call::nudge_referendum {
 				index: 0,
 			}))
 			.unwrap();

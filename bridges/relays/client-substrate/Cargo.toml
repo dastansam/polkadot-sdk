@@ -41,6 +41,7 @@ relay-utils = { workspace = true }
 # Substrate Dependencies
 
 frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
 pallet-transaction-payment = { workspace = true, default-features = true }
 pallet-transaction-payment-rpc-runtime-api = { workspace = true, default-features = true }
 pallet-utility = { workspace = true, default-features = true }

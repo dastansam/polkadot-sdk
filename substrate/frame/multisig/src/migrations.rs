@@ -23,7 +23,7 @@ use frame::prelude::*;
 pub mod v1 {
 	use super::*;
 
-	type OpaqueCall<T> = frame::traits::WrapperKeepOpaque<<T as Config>::RuntimeCall>;
+	type OpaqueCall<T> = frame::traits::WrapperKeepOpaque<<T as frame_system::Config>::RuntimeCall>;
 
 	#[frame::storage_alias]
 	type Calls<T: Config> = StorageMap<

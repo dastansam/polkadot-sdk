@@ -158,7 +158,7 @@ impl generic::Config for Test {
 	}
 
 	fn transact_origin_and_runtime_call(
-	) -> Result<(Location, <Self as generic::Config>::RuntimeCall), BenchmarkError> {
+	) -> Result<(Location, <Self as frame_system::Config>::RuntimeCall), BenchmarkError> {
 		Ok((Default::default(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
 	}
 

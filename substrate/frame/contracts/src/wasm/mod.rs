@@ -778,7 +778,7 @@ mod tests {
 		}
 		fn call_runtime(
 			&self,
-			call: <Self::T as Config>::RuntimeCall,
+			call: <Self::T as frame_system::Config>::RuntimeCall,
 		) -> DispatchResultWithPostInfo {
 			self.runtime_calls.borrow_mut().push(call);
 			Ok(Default::default())

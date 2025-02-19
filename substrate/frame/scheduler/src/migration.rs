@@ -35,7 +35,7 @@ pub mod v1 {
 		Pallet<T>,
 		Twox64Concat,
 		BlockNumberFor<T>,
-		Vec<Option<ScheduledV1<<T as Config>::RuntimeCall, BlockNumberFor<T>>>>,
+		Vec<Option<ScheduledV1<<T as frame_system::Config>::RuntimeCall, BlockNumberFor<T>>>>,
 		ValueQuery,
 	>;
 

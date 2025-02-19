@@ -74,7 +74,8 @@ mod benchmarks {
 		let origin = T::DispatchWhitelistedOrigin::try_successful_origin()
 			.map_err(|_| BenchmarkError::Weightless)?;
 		let remark = alloc::vec![1u8; n as usize];
-		let call: <T as Config>::RuntimeCall = frame_system::Call::remark { remark }.into();
+		let call: <T as frame_system::Config>::RuntimeCall =
+			frame_system::Call::remark { remark }.into();
 		let call_weight = call.get_dispatch_info().call_weight;
 		let encoded_call = call.encode();
 		let call_encoded_len = encoded_call.len() as u32;
@@ -99,7 +100,8 @@ mod benchmarks {
 			.map_err(|_| BenchmarkError::Weightless)?;
 		let remark = alloc::vec![1u8; n as usize];
 
-		let call: <T as Config>::RuntimeCall = frame_system::Call::remark { remark }.into();
+		let call: <T as frame_system::Config>::RuntimeCall =
+			frame_system::Call::remark { remark }.into();
 		let call_hash = T::Hashing::hash_of(&call);
 
 		Pallet::<T>::whitelist_call(origin.clone(), call_hash)

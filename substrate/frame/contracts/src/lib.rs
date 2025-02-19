@@ -253,7 +253,11 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config(with_default)]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>,
+	>
+	{
 		/// The time implementation used to supply timestamps to contracts through `seal_now`.
 		type Time: Time;
 
@@ -281,6 +285,7 @@ pub mod pallet {
 
 		/// The overarching call type.
 		#[pallet::no_default_bounds]
+		#[allow(deprecated)]
 		type RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
 			+ GetDispatchInfo
 			+ codec::Decode

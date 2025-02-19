@@ -264,9 +264,9 @@ pub struct FullRuntimeUtilityPallet<R> {
 
 impl<C, R> UtilityPallet<C> for FullRuntimeUtilityPallet<R>
 where
-	C: Chain,
-	R: pallet_utility::Config<RuntimeCall = C::Call>,
-	<R as pallet_utility::Config>::RuntimeCall: From<pallet_utility::Call<R>>,
+	C: Chain<Call = <R as frame_system::Config>::RuntimeCall>,
+	R: pallet_utility::Config,
+	<R as frame_system::Config>::RuntimeCall: From<pallet_utility::Call<R>>,
 {
 	fn build_batch_call(calls: Vec<C::Call>) -> C::Call {
 		pallet_utility::Call::batch_all { calls }.into()

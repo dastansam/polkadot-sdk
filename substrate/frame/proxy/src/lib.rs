@@ -39,6 +39,7 @@ use frame::{
 	prelude::*,
 	traits::{Currency, InstanceFilter, ReservableCurrency},
 };
+use frame_system::Config as SystemConfig;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -97,12 +98,15 @@ pub mod pallet {
 
 	/// Configuration trait.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<RuntimeCall: IsSubType<Call<Self>> + From<frame_system::Call<Self>>>
+	{
 		/// The overarching event type.
 		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The overarching call type.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin>
 			+ GetDispatchInfo
@@ -121,7 +125,7 @@ pub mod pallet {
 			+ Member
 			+ Ord
 			+ PartialOrd
-			+ frame::traits::InstanceFilter<<Self as Config>::RuntimeCall>
+			+ frame::traits::InstanceFilter<<Self as SystemConfig>::RuntimeCall>
 			+ Default
 			+ MaxEncodedLen;
 
@@ -196,7 +200,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			real: AccountIdLookupOf<T>,
 			force_proxy_type: Option<T::ProxyType>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as SystemConfig>::RuntimeCall>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let real = T::Lookup::lookup(real)?;
@@ -489,7 +493,7 @@ pub mod pallet {
 			delegate: AccountIdLookupOf<T>,
 			real: AccountIdLookupOf<T>,
 			force_proxy_type: Option<T::ProxyType>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as SystemConfig>::RuntimeCall>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 			let delegate = T::Lookup::lookup(delegate)?;
@@ -596,7 +600,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Check if a `RuntimeCall` is allowed for a given `ProxyType`.
 		pub fn check_permissions(
-			call: <T as Config>::RuntimeCall,
+			call: <T as SystemConfig>::RuntimeCall,
 			proxy_type: T::ProxyType,
 		) -> bool {
 			proxy_type.filter(&call)
@@ -804,13 +808,12 @@ impl<T: Config> Pallet<T> {
 	fn do_proxy(
 		def: ProxyDefinition<T::AccountId, T::ProxyType, BlockNumberFor<T>>,
 		real: T::AccountId,
-		call: <T as Config>::RuntimeCall,
+		call: <T as SystemConfig>::RuntimeCall,
 	) {
 		use frame::traits::{InstanceFilter as _, OriginTrait as _};
 		// This is a freshly authenticated new account, the origin restrictions doesn't apply.
 		let mut origin: T::RuntimeOrigin = frame_system::RawOrigin::Signed(real).into();
-		origin.add_filter(move |c: &<T as frame_system::Config>::RuntimeCall| {
-			let c = <T as Config>::RuntimeCall::from_ref(c);
+		origin.add_filter(move |c: &<T as SystemConfig>::RuntimeCall| {
 			// We make sure the proxy call does access this pallet to change modify proxies.
 			match c.is_sub_type() {
 				// Proxy call cannot add or remove a proxy with more permissions than it already
