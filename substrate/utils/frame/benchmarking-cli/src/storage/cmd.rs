@@ -242,7 +242,7 @@ impl StorageCmd {
 				}
 			}
 			for (key, info) in child_nodes.as_slice() {
-				client
+				let _ = client
 					.child_storage(hash, info, key)
 					.expect("Checked above to exist")
 					.ok_or("Value unexpectedly empty")?;

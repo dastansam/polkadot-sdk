@@ -46,7 +46,7 @@ pub mod pallet {
 
 	/// The module configuration trait.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config<RuntimeCall: From<Call<Self>>> {
 		/// The overarching event type.
 		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -55,6 +55,7 @@ pub mod pallet {
 			+ Into<Result<CumulusOrigin, <Self as Config>::RuntimeOrigin>>;
 
 		/// The overarching call type; we assume sibling chains use the same type.
+		#[allow(deprecated)]
 		type RuntimeCall: From<Call<Self>> + Encode;
 
 		type XcmSender: SendXcm;
@@ -109,7 +110,7 @@ pub mod pallet {
 					(Parent, Junction::Parachain(para.into())).into(),
 					Xcm(vec![Transact {
 						origin_kind: OriginKind::Native,
-						call: <T as Config>::RuntimeCall::from(Call::<T>::ping {
+						call: <T as frame_system::Config>::RuntimeCall::from(Call::<T>::ping {
 							seq,
 							payload: payload.clone().to_vec(),
 						})
@@ -210,7 +211,7 @@ pub mod pallet {
 				(Parent, Junction::Parachain(para.into())).into(),
 				Xcm(vec![Transact {
 					origin_kind: OriginKind::Native,
-					call: <T as Config>::RuntimeCall::from(Call::<T>::pong {
+					call: <T as frame_system::Config>::RuntimeCall::from(Call::<T>::pong {
 						seq,
 						payload: payload.clone(),
 					})

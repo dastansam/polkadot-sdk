@@ -811,7 +811,7 @@ pub mod pallet {
 			region_id: RegionId,
 			max_timeslices: Timeslice,
 		) -> DispatchResultWithPostInfo {
-			ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 			Self::do_claim_revenue(region_id, max_timeslices)?;
 			Ok(Pays::No.into())
 		}

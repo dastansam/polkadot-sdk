@@ -87,8 +87,9 @@ fn make_task<T: Config>(
 }
 
 fn bounded<T: Config>(len: u32) -> Option<BoundedCallOf<T>> {
-	let call =
-		<<T as Config>::RuntimeCall>::from(SystemCall::remark { remark: vec![0; len as usize] });
+	let call = <<T as frame_system::Config>::RuntimeCall>::from(SystemCall::remark {
+		remark: vec![0; len as usize],
+	});
 	T::Preimages::bound(call).ok()
 }
 

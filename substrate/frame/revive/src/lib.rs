@@ -79,7 +79,7 @@ use sp_runtime::{
 };
 
 pub use crate::{
-	address::{create1, create2, is_eth_derived, AccountId32Mapper, AddressMapper},
+	address::{create1, create2, AccountId32Mapper, AddressMapper},
 	exec::{MomentOf, Origin},
 	pallet::*,
 };
@@ -126,7 +126,11 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config(with_default)]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>,
+	>
+	{
 		/// The time implementation used to supply timestamps to contracts through `seal_now`.
 		type Time: Time;
 
@@ -142,6 +146,7 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The overarching call type.
+		#[allow(deprecated)]
 		#[pallet::no_default_bounds]
 		type RuntimeCall: Parameter
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
@@ -384,121 +389,120 @@ pub mod pallet {
 	}
 
 	#[pallet::error]
-	#[repr(u8)]
 	pub enum Error<T> {
 		/// Invalid schedule supplied, e.g. with zero weight of a basic operation.
-		InvalidSchedule = 0x01,
+		InvalidSchedule,
 		/// Invalid combination of flags supplied to `seal_call` or `seal_delegate_call`.
-		InvalidCallFlags = 0x02,
+		InvalidCallFlags,
 		/// The executed contract exhausted its gas limit.
-		OutOfGas = 0x03,
+		OutOfGas,
 		/// Performing the requested transfer failed. Probably because there isn't enough
 		/// free balance in the sender's account.
-		TransferFailed = 0x04,
+		TransferFailed,
 		/// Performing a call was denied because the calling depth reached the limit
 		/// of what is specified in the schedule.
-		MaxCallDepthReached = 0x05,
+		MaxCallDepthReached,
 		/// No contract was found at the specified address.
-		ContractNotFound = 0x06,
+		ContractNotFound,
 		/// No code could be found at the supplied code hash.
-		CodeNotFound = 0x07,
+		CodeNotFound,
 		/// No code info could be found at the supplied code hash.
-		CodeInfoNotFound = 0x08,
+		CodeInfoNotFound,
 		/// A buffer outside of sandbox memory was passed to a contract API function.
-		OutOfBounds = 0x09,
+		OutOfBounds,
 		/// Input passed to a contract API function failed to decode as expected type.
-		DecodingFailed = 0x0A,
+		DecodingFailed,
 		/// Contract trapped during execution.
-		ContractTrapped = 0x0B,
+		ContractTrapped,
 		/// The size defined in `T::MaxValueSize` was exceeded.
-		ValueTooLarge = 0x0C,
+		ValueTooLarge,
 		/// Termination of a contract is not allowed while the contract is already
 		/// on the call stack. Can be triggered by `seal_terminate`.
-		TerminatedWhileReentrant = 0x0D,
+		TerminatedWhileReentrant,
 		/// `seal_call` forwarded this contracts input. It therefore is no longer available.
-		InputForwarded = 0x0E,
+		InputForwarded,
 		/// The amount of topics passed to `seal_deposit_events` exceeds the limit.
-		TooManyTopics = 0x0F,
+		TooManyTopics,
 		/// The chain does not provide a chain extension. Calling the chain extension results
 		/// in this error. Note that this usually  shouldn't happen as deploying such contracts
 		/// is rejected.
-		NoChainExtension = 0x10,
+		NoChainExtension,
 		/// Failed to decode the XCM program.
-		XCMDecodeFailed = 0x11,
+		XCMDecodeFailed,
 		/// A contract with the same AccountId already exists.
-		DuplicateContract = 0x12,
+		DuplicateContract,
 		/// A contract self destructed in its constructor.
 		///
 		/// This can be triggered by a call to `seal_terminate`.
-		TerminatedInConstructor = 0x13,
+		TerminatedInConstructor,
 		/// A call tried to invoke a contract that is flagged as non-reentrant.
-		ReentranceDenied = 0x14,
+		ReentranceDenied,
 		/// A contract called into the runtime which then called back into this pallet.
-		ReenteredPallet = 0x15,
+		ReenteredPallet,
 		/// A contract attempted to invoke a state modifying API while being in read-only mode.
-		StateChangeDenied = 0x16,
+		StateChangeDenied,
 		/// Origin doesn't have enough balance to pay the required storage deposits.
-		StorageDepositNotEnoughFunds = 0x17,
+		StorageDepositNotEnoughFunds,
 		/// More storage was created than allowed by the storage deposit limit.
-		StorageDepositLimitExhausted = 0x18,
+		StorageDepositLimitExhausted,
 		/// Code removal was denied because the code is still in use by at least one contract.
-		CodeInUse = 0x19,
+		CodeInUse,
 		/// The contract ran to completion but decided to revert its storage changes.
 		/// Please note that this error is only returned from extrinsics. When called directly
 		/// or via RPC an `Ok` will be returned. In this case the caller needs to inspect the flags
 		/// to determine whether a reversion has taken place.
-		ContractReverted = 0x1A,
+		ContractReverted,
 		/// The contract failed to compile or is missing the correct entry points.
 		///
 		/// A more detailed error can be found on the node console if debug messages are enabled
 		/// by supplying `-lruntime::revive=debug`.
-		CodeRejected = 0x1B,
+		CodeRejected,
 		/// The code blob supplied is larger than [`limits::code::BLOB_BYTES`].
-		BlobTooLarge = 0x1C,
+		BlobTooLarge,
 		/// The static memory consumption of the blob will be larger than
 		/// [`limits::code::STATIC_MEMORY_BYTES`].
-		StaticMemoryTooLarge = 0x1D,
+		StaticMemoryTooLarge,
 		/// The program contains a basic block that is larger than allowed.
-		BasicBlockTooLarge = 0x1E,
+		BasicBlockTooLarge,
 		/// The program contains an invalid instruction.
-		InvalidInstruction = 0x1F,
+		InvalidInstruction,
 		/// The contract has reached its maximum number of delegate dependencies.
-		MaxDelegateDependenciesReached = 0x20,
+		MaxDelegateDependenciesReached,
 		/// The dependency was not found in the contract's delegate dependencies.
-		DelegateDependencyNotFound = 0x21,
+		DelegateDependencyNotFound,
 		/// The contract already depends on the given delegate dependency.
-		DelegateDependencyAlreadyExists = 0x22,
+		DelegateDependencyAlreadyExists,
 		/// Can not add a delegate dependency to the code hash of the contract itself.
-		CannotAddSelfAsDelegateDependency = 0x23,
+		CannotAddSelfAsDelegateDependency,
 		/// Can not add more data to transient storage.
-		OutOfTransientStorage = 0x24,
+		OutOfTransientStorage,
 		/// The contract tried to call a syscall which does not exist (at its current api level).
-		InvalidSyscall = 0x25,
+		InvalidSyscall,
 		/// Invalid storage flags were passed to one of the storage syscalls.
-		InvalidStorageFlags = 0x26,
+		InvalidStorageFlags,
 		/// PolkaVM failed during code execution. Probably due to a malformed program.
-		ExecutionFailed = 0x27,
+		ExecutionFailed,
 		/// Failed to convert a U256 to a Balance.
-		BalanceConversionFailed = 0x28,
+		BalanceConversionFailed,
 		/// Failed to convert an EVM balance to a native balance.
-		DecimalPrecisionLoss = 0x29,
+		DecimalPrecisionLoss,
 		/// Immutable data can only be set during deploys and only be read during calls.
 		/// Additionally, it is only valid to set the data once and it must not be empty.
-		InvalidImmutableAccess = 0x2A,
+		InvalidImmutableAccess,
 		/// An `AccountID32` account tried to interact with the pallet without having a mapping.
 		///
 		/// Call [`Pallet::map_account`] in order to create a mapping for the account.
-		AccountUnmapped = 0x2B,
+		AccountUnmapped,
 		/// Tried to map an account that is already mapped.
-		AccountAlreadyMapped = 0x2C,
+		AccountAlreadyMapped,
 		/// The transaction used to dry-run a contract is invalid.
-		InvalidGenericTransaction = 0x2D,
+		InvalidGenericTransaction,
 		/// The refcount of a code either over or underflowed.
-		RefcountOverOrUnderflow = 0x2E,
+		RefcountOverOrUnderflow,
 		/// Unsupported precompile address
-		UnsupportedPrecompileAddress = 0x2F,
+		UnsupportedPrecompileAddress,
 		/// Precompile Error
-		PrecompileFailure = 0x30,
+		PrecompileFailure,
 	}
 
 	/// A reason for the pallet contracts placing a hold on funds.
@@ -549,24 +553,6 @@ pub mod pallet {
 	/// use it with this pallet.
 	#[pallet::storage]
 	pub(crate) type OriginalAccount<T: Config> = StorageMap<_, Identity, H160, AccountId32>;
-
-	#[pallet::genesis_config]
-	#[derive(frame_support::DefaultNoBound)]
-	pub struct GenesisConfig<T: Config> {
-		/// Genesis mapped accounts
-		pub mapped_accounts: Vec<T::AccountId>,
-	}
-
-	#[pallet::genesis_build]
-	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
-		fn build(&self) {
-			for id in &self.mapped_accounts {
-				if let Err(err) = T::AddressMapper::map(id) {
-					log::error!(target: LOG_TARGET, "Failed to map account {id:?}: {err:?}");
-				}
-			}
-		}
-	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -977,7 +963,7 @@ pub mod pallet {
 		})]
 		pub fn dispatch_as_fallback_account(
 			origin: OriginFor<T>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			let origin = ensure_signed(origin)?;
 			let unmapped_account =
@@ -1144,8 +1130,8 @@ where
 	where
 		<T as frame_system::Config>::RuntimeCall:
 			Dispatchable<Info = frame_support::dispatch::DispatchInfo>,
-		<T as Config>::RuntimeCall: From<crate::Call<T>>,
-		<T as Config>::RuntimeCall: Encode,
+		<T as frame_system::Config>::RuntimeCall: From<crate::Call<T>>,
+		<T as frame_system::Config>::RuntimeCall: Encode,
 		T::Nonce: Into<U256>,
 		T::Hash: frame_support::traits::IsType<H256>,
 	{
@@ -1238,14 +1224,15 @@ where
 					result.gas_required,
 					result.storage_deposit,
 				);
-				let dispatch_call: <T as Config>::RuntimeCall = crate::Call::<T>::call {
-					dest,
-					value: native_value,
-					gas_limit,
-					storage_deposit_limit,
-					data: input.clone(),
-				}
-				.into();
+				let dispatch_call: <T as frame_system::Config>::RuntimeCall =
+					crate::Call::<T>::call {
+						dest,
+						value: native_value,
+						gas_limit,
+						storage_deposit_limit,
+						data: input.clone(),
+					}
+					.into();
 				(result, dispatch_call.get_dispatch_info())
 			},
 			// A contract deployment
@@ -1299,7 +1286,7 @@ where
 					result.gas_required,
 					result.storage_deposit,
 				);
-				let dispatch_call: <T as Config>::RuntimeCall =
+				let dispatch_call: <T as frame_system::Config>::RuntimeCall =
 					crate::Call::<T>::instantiate_with_code {
 						value: native_value,
 						gas_limit,

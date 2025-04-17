@@ -34,7 +34,7 @@ fn assert_last_event<T: Config>(generic_event: crate::Event<T>) {
 
 #[benchmarks(where
 	T: Send + Sync,
-	<T as Config>::RuntimeCall: From<frame_system::Call<T>>,
+	<T as frame_system::Config>::RuntimeCall: From<frame_system::Call<T>>,
 	<T as frame_system::Config>::RuntimeCall: Dispatchable<Info = DispatchInfo> + GetDispatchInfo,
 	<<T as frame_system::Config>::RuntimeCall as Dispatchable>::PostInfo: Default,
 	<<T as frame_system::Config>::RuntimeCall as Dispatchable>::RuntimeOrigin:

@@ -241,7 +241,7 @@ pub mod pallet_with_external_origin {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		pub fn externally_checked_ext(origin: OriginFor<T>) -> DispatchResult {
-			T::ExternalOrigin::ensure_origin(origin)?;
+			let _ = T::ExternalOrigin::ensure_origin(origin)?;
 			todo!();
 		}
 	}

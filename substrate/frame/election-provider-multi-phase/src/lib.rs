@@ -1221,7 +1221,7 @@ pub mod pallet {
 					_ => return InvalidTransaction::Call.into(),
 				}
 
-				Self::unsigned_pre_dispatch_checks(raw_solution)
+				let _ = Self::unsigned_pre_dispatch_checks(raw_solution)
 					.inspect_err(|err| {
 						log!(debug, "unsigned transaction validation failed due to {:?}", err);
 					})

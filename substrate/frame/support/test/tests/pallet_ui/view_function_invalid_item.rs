@@ -25,7 +25,7 @@ mod pallet {
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	#[pallet::view_functions]
+	#[pallet::view_functions_experimental]
 	impl<T: Config> Pallet<T> {
 		pub const SECONDS_PER_MINUTE: u32 = 60;
 	}

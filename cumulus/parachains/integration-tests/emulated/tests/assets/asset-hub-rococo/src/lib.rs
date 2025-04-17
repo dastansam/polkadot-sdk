@@ -43,9 +43,9 @@ mod imports {
 			TestArgs, TestContext, TestExt,
 		},
 		xcm_helpers::{
-			fee_asset, get_amount_from_versioned_assets, non_fee_asset, xcm_transact_paid_execution,
+			get_amount_from_versioned_assets, non_fee_asset, xcm_transact_paid_execution,
 		},
-		PenpalATeleportableAssetLocation, ASSETS_PALLET_ID, RESERVABLE_ASSET_ID, XCM_V3,
+		ASSETS_PALLET_ID, RESERVABLE_ASSET_ID, XCM_V3,
 	};
 	pub use parachains_common::Balance;
 	pub use rococo_system_emulated_network::{
@@ -53,7 +53,7 @@ mod imports {
 			asset_hub_rococo_runtime::{
 				self,
 				xcm_config::{
-					self as ahr_xcm_config, TokenLocation as RelayLocation, TreasuryAccount,
+					self as ahr_xcm_config, TokenLocation as RelayLocation,
 					XcmConfig as AssetHubRococoXcmConfig,
 				},
 				AssetConversionOrigin as AssetHubRococoAssetConversionOrigin,

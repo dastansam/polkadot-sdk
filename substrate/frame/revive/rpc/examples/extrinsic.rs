@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let block = client.blocks().at(block_hash).await.unwrap();
 	let extrinsics = block.extrinsics().await.unwrap();
-	extrinsics.find_first::<InstantiateWithCode>()?;
+	let _ = extrinsics.find_first::<InstantiateWithCode>()?;
 
 	Ok(())
 }

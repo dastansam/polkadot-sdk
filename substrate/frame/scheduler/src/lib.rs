@@ -117,10 +117,10 @@ pub type PeriodicIndex = u32;
 pub type TaskAddress<BlockNumber> = (BlockNumber, u32);
 
 pub type CallOrHashOf<T> =
-	MaybeHashed<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hash>;
+	MaybeHashed<<T as frame_system::Config>::RuntimeCall, <T as frame_system::Config>::Hash>;
 
 pub type BoundedCallOf<T> =
-	Bounded<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
+	Bounded<<T as frame_system::Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
 
 pub type BlockNumberFor<T> =
 	<<T as Config>::BlockNumberProvider as BlockNumberProvider>::BlockNumber;
@@ -186,7 +186,7 @@ use crate::{Scheduled as ScheduledV3, Scheduled as ScheduledV2};
 
 pub type ScheduledV2Of<T> = ScheduledV2<
 	Vec<u8>,
-	<T as Config>::RuntimeCall,
+	<T as frame_system::Config>::RuntimeCall,
 	BlockNumberFor<T>,
 	<T as Config>::PalletsOrigin,
 	<T as frame_system::Config>::AccountId,
@@ -241,7 +241,14 @@ pub mod pallet {
 
 	/// `system::Config` should always be included in our implied traits.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: Dispatchable<
+			RuntimeOrigin = <Self as Config>::RuntimeOrigin,
+			PostInfo = PostDispatchInfo,
+		>,
+	>
+	{
 		/// The overarching event type.
 		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -257,6 +264,7 @@ pub mod pallet {
 			+ MaxEncodedLen;
 
 		/// The aggregated call type.
+		#[allow(deprecated)]
 		type RuntimeCall: Parameter
 			+ Dispatchable<
 				RuntimeOrigin = <Self as Config>::RuntimeOrigin,
@@ -427,7 +435,7 @@ pub mod pallet {
 			when: BlockNumberFor<T>,
 			maybe_periodic: Option<schedule::Period<BlockNumberFor<T>>>,
 			priority: schedule::Priority,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
@@ -460,7 +468,7 @@ pub mod pallet {
 			when: BlockNumberFor<T>,
 			maybe_periodic: Option<schedule::Period<BlockNumberFor<T>>>,
 			priority: schedule::Priority,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
@@ -493,7 +501,7 @@ pub mod pallet {
 			after: BlockNumberFor<T>,
 			maybe_periodic: Option<schedule::Period<BlockNumberFor<T>>>,
 			priority: schedule::Priority,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
@@ -516,7 +524,7 @@ pub mod pallet {
 			after: BlockNumberFor<T>,
 			maybe_periodic: Option<schedule::Period<BlockNumberFor<T>>>,
 			priority: schedule::Priority,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
@@ -659,7 +667,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Agenda::<T>::translate::<
-			Vec<Option<ScheduledV1<<T as Config>::RuntimeCall, BlockNumberFor<T>>>>,
+			Vec<Option<ScheduledV1<<T as frame_system::Config>::RuntimeCall, BlockNumberFor<T>>>>,
 			_,
 		>(|_, agenda| {
 			Some(BoundedVec::truncate_from(
@@ -821,7 +829,7 @@ impl<T: Config> Pallet<T> {
 										let bounded = Bounded::from_legacy_hash(h);
 										// Check that the call can be decoded in the new runtime.
 										if let Err(err) = T::Preimages::peek::<
-											<T as Config>::RuntimeCall,
+											<T as frame_system::Config>::RuntimeCall,
 										>(&bounded)
 										{
 											log::error!(
@@ -1390,7 +1398,7 @@ impl<T: Config> Pallet<T> {
 	fn execute_dispatch(
 		weight: &mut WeightMeter,
 		origin: T::PalletsOrigin,
-		call: <T as Config>::RuntimeCall,
+		call: <T as frame_system::Config>::RuntimeCall,
 	) -> Result<DispatchResult, ()> {
 		let base_weight = match origin.as_system_ref() {
 			Some(&RawOrigin::Signed(_)) => T::WeightInfo::execute_dispatch_signed(),
@@ -1482,8 +1490,12 @@ impl<T: Config> Pallet<T> {
 }
 
 #[allow(deprecated)]
-impl<T: Config> schedule::v2::Anon<BlockNumberFor<T>, <T as Config>::RuntimeCall, T::PalletsOrigin>
-	for Pallet<T>
+impl<T: Config>
+	schedule::v2::Anon<
+		BlockNumberFor<T>,
+		<T as frame_system::Config>::RuntimeCall,
+		T::PalletsOrigin,
+	> for Pallet<T>
 {
 	type Address = TaskAddress<BlockNumberFor<T>>;
 	type Hash = T::Hash;
@@ -1518,8 +1530,12 @@ impl<T: Config> schedule::v2::Anon<BlockNumberFor<T>, <T as Config>::RuntimeCall
 
 // TODO: migrate `schedule::v2::Anon` to `v3`
 #[allow(deprecated)]
-impl<T: Config> schedule::v2::Named<BlockNumberFor<T>, <T as Config>::RuntimeCall, T::PalletsOrigin>
-	for Pallet<T>
+impl<T: Config>
+	schedule::v2::Named<
+		BlockNumberFor<T>,
+		<T as frame_system::Config>::RuntimeCall,
+		T::PalletsOrigin,
+	> for Pallet<T>
 {
 	type Address = TaskAddress<BlockNumberFor<T>>;
 	type Hash = T::Hash;
@@ -1559,8 +1575,12 @@ impl<T: Config> schedule::v2::Named<BlockNumberFor<T>, <T as Config>::RuntimeCal
 	}
 }
 
-impl<T: Config> schedule::v3::Anon<BlockNumberFor<T>, <T as Config>::RuntimeCall, T::PalletsOrigin>
-	for Pallet<T>
+impl<T: Config>
+	schedule::v3::Anon<
+		BlockNumberFor<T>,
+		<T as frame_system::Config>::RuntimeCall,
+		T::PalletsOrigin,
+	> for Pallet<T>
 {
 	type Address = TaskAddress<BlockNumberFor<T>>;
 	type Hasher = T::Hashing;
@@ -1598,8 +1618,12 @@ impl<T: Config> schedule::v3::Anon<BlockNumberFor<T>, <T as Config>::RuntimeCall
 
 use schedule::v3::TaskName;
 
-impl<T: Config> schedule::v3::Named<BlockNumberFor<T>, <T as Config>::RuntimeCall, T::PalletsOrigin>
-	for Pallet<T>
+impl<T: Config>
+	schedule::v3::Named<
+		BlockNumberFor<T>,
+		<T as frame_system::Config>::RuntimeCall,
+		T::PalletsOrigin,
+	> for Pallet<T>
 {
 	type Address = TaskAddress<BlockNumberFor<T>>;
 	type Hasher = T::Hashing;

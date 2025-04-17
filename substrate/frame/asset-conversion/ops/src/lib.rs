@@ -154,7 +154,7 @@ pub mod pallet {
 			asset1: Box<T::AssetKind>,
 			asset2: Box<T::AssetKind>,
 		) -> DispatchResultWithPostInfo {
-			ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 
 			let pool_id = T::PoolLocator::pool_id(&asset1, &asset2)
 				.map_err(|_| Error::<T>::InvalidAssetPair)?;

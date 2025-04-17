@@ -529,7 +529,7 @@ impl<
 			message.0.insert(0, DescendOrigin(bridge_instance));
 		}
 
-		send_xcm::<Router>(dest, message).map_err(|_| DispatchBlobError::RoutingError)?;
+		let _ = send_xcm::<Router>(dest, message).map_err(|_| DispatchBlobError::RoutingError)?;
 		Ok(())
 	}
 }

@@ -59,7 +59,7 @@ where
 		+ pallet_utility::Config,
 	GPI: 'static,
 	MPI: 'static,
-	<Runtime as pallet_utility::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
+	<Runtime as frame_system::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
 		+ From<pallet_bridge_messages::Call<Runtime, MPI>>,
 	BridgedChainOf<Runtime, MPI>: Chain<Hash = HashOf<BridgedChain<Runtime, GPI>>>,
 {
@@ -94,7 +94,7 @@ where
 		+ pallet_utility::Config,
 	GPI: 'static,
 	MPI: 'static,
-	<Runtime as pallet_utility::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
+	<Runtime as frame_system::Config>::RuntimeCall: From<pallet_bridge_grandpa::Call<Runtime, GPI>>
 		+ From<pallet_bridge_messages::Call<Runtime, MPI>>,
 	BridgedChainOf<Runtime, MPI>: Chain<Hash = HashOf<BridgedChain<Runtime, GPI>>>,
 {

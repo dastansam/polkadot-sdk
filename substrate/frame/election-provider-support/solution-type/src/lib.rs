@@ -175,11 +175,11 @@ impl Parse for SolutionDef {
 
 		// <vis> struct <name>
 		let vis: syn::Visibility = input.parse()?;
-		<syn::Token![struct]>::parse(input)?;
+		let _ = <syn::Token![struct]>::parse(input)?;
 		let ident: syn::Ident = input.parse()?;
 
 		// ::<V, T, W>
-		<syn::Token![::]>::parse(input)?;
+		let _ = <syn::Token![::]>::parse(input)?;
 		let generics: syn::AngleBracketedGenericArguments = input.parse()?;
 
 		if generics.args.len() != 4 {

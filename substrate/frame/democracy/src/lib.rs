@@ -1723,13 +1723,13 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), BadOrigin> {
 		match threshold {
 			VoteThreshold::SuperMajorityApprove => {
-				T::ExternalOrigin::ensure_origin(origin)?;
+				let _ = T::ExternalOrigin::ensure_origin(origin)?;
 			},
 			VoteThreshold::SuperMajorityAgainst => {
-				T::ExternalDefaultOrigin::ensure_origin(origin)?;
+				let _ = T::ExternalDefaultOrigin::ensure_origin(origin)?;
 			},
 			VoteThreshold::SimpleMajority => {
-				T::ExternalMajorityOrigin::ensure_origin(origin)?;
+				let _ = T::ExternalMajorityOrigin::ensure_origin(origin)?;
 			},
 		};
 		Ok(())

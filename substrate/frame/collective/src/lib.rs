@@ -837,7 +837,7 @@ pub mod pallet {
 			proposal_weight_bound: Weight,
 			#[pallet::compact] length_bound: u32,
 		) -> DispatchResultWithPostInfo {
-			ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 
 			Self::do_close(proposal_hash, index, proposal_weight_bound, length_bound)
 		}
@@ -886,13 +886,13 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			proposal_hash: T::Hash,
 		) -> DispatchResult {
-			ensure_signed_or_root(origin)?;
+			let _ = ensure_signed_or_root(origin)?;
 			ensure!(
 				ProposalOf::<T, I>::get(&proposal_hash).is_none(),
 				Error::<T, I>::ProposalActive
 			);
 			if let Some((who, cost)) = <CostOf<T, I>>::take(proposal_hash) {
-				cost.drop(&who)?;
+				let _ = cost.drop(&who)?;
 				Self::deposit_event(Event::ProposalCostReleased { proposal_hash, who });
 			}
 

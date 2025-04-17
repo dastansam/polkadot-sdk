@@ -2318,7 +2318,7 @@ pub mod env {
 	) -> Result<ReturnErrorCode, TrapReason> {
 		use frame_support::dispatch::GetDispatchInfo;
 		ctx.charge_gas(RuntimeCosts::CopyFromContract(call_len))?;
-		let call: <E::T as Config>::RuntimeCall =
+		let call: <E::T as frame_system::Config>::RuntimeCall =
 			ctx.read_sandbox_memory_as_unbounded(memory, call_ptr, call_len)?;
 		ctx.call_dispatchable::<CallRuntimeFailed>(
 			call.get_dispatch_info(),

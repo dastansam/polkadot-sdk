@@ -508,7 +508,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			match renouncing {
 				Renouncing::Member => {
-					Self::remove_and_replace_member(&who, false)
+					let _ = Self::remove_and_replace_member(&who, false)
 						.map_err(|_| Error::<T>::InvalidRenouncing)?;
 					Self::deposit_event(Event::Renounced { candidate: who });
 				},
@@ -574,7 +574,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let who = T::Lookup::lookup(who)?;
 
-			Self::remove_and_replace_member(&who, slash_bond)?;
+			let _ = Self::remove_and_replace_member(&who, slash_bond)?;
 			Self::deposit_event(Event::MemberKicked { member: who });
 
 			if rerun_election {
@@ -601,7 +601,7 @@ pub mod pallet {
 			num_voters: u32,
 			num_defunct: u32,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			let _ = ensure_root(origin)?;
 
 			Voting::<T>::iter()
 				.take(num_voters as usize)
