@@ -47,9 +47,12 @@ fn funded_account<T: Config<I>, I: 'static>(name: &'static str, index: u32) -> T
 	caller
 }
 
-fn dummy_call<T: Config<I>, I: 'static>() -> BoundedCallOf<T, I> {
+fn dummy_call<
+	T: Config<I> + frame_system::Config<RuntimeCall: From<frame_system::Call<T>>>,
+	I: 'static,
+>() -> BoundedCallOf<T> {
 	let inner = frame_system::Call::remark { remark: vec![] };
-	let call = <T as Config<I>>::RuntimeCall::from(inner);
+	let call = <T as frame_system::Config>::RuntimeCall::from(inner);
 	T::Preimages::bound(call).unwrap()
 }
 

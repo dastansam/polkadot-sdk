@@ -28,7 +28,7 @@ mod pallet {
 	#[pallet::storage]
 	pub type MyStorage<T> = StorageValue<_, u32>;
 
-	#[pallet::view_functions]
+	#[pallet::view_functions_experimental]
 	impl<T: Config> Pallet<T> {
 		fn get_value() -> Option<u32> {
 			MyStorage::<T>::get()

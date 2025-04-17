@@ -438,7 +438,7 @@ pub fn ethereum_extrinsic<Runtime>(
 	Runtime: frame_system::Config
 		+ pallet_balances::Config
 		+ pallet_session::Config
-		+ pallet_xcm::Config
+		+ pallet_xcm::Config<RuntimeOrigin = <Runtime as frame_system::Config>::RuntimeOrigin>
 		+ pallet_utility::Config
 		+ parachain_info::Config
 		+ pallet_collator_selection::Config
@@ -448,7 +448,7 @@ pub fn ethereum_extrinsic<Runtime>(
 		+ snowbridge_pallet_ethereum_client::Config
 		+ pallet_timestamp::Config,
 	ValidatorIdOf<Runtime>: From<AccountIdOf<Runtime>>,
-	<Runtime as pallet_utility::Config>::RuntimeCall:
+	<Runtime as frame_system::Config>::RuntimeCall:
 		From<snowbridge_pallet_ethereum_client::Call<Runtime>>,
 	<Runtime as frame_system::Config>::RuntimeCall: From<pallet_utility::Call<Runtime>>,
 	AccountIdOf<Runtime>: From<AccountId32>,
@@ -485,25 +485,25 @@ pub fn ethereum_extrinsic<Runtime>(
 			let balance_after_checkpoint =
 				<pallet_balances::Pallet<Runtime>>::free_balance(&alice_account.clone().into());
 
-			let update_call: <Runtime as pallet_utility::Config>::RuntimeCall =
+			let update_call: <Runtime as frame_system::Config>::RuntimeCall =
 				snowbridge_pallet_ethereum_client::Call::<Runtime>::submit {
 					update: Box::new(*update.clone()),
 				}
 				.into();
 
-			let invalid_update_call: <Runtime as pallet_utility::Config>::RuntimeCall =
+			let invalid_update_call: <Runtime as frame_system::Config>::RuntimeCall =
 				snowbridge_pallet_ethereum_client::Call::<Runtime>::submit {
 					update: Box::new(*invalid_update),
 				}
 				.into();
 
-			let update_sync_committee_call: <Runtime as pallet_utility::Config>::RuntimeCall =
+			let update_sync_committee_call: <Runtime as frame_system::Config>::RuntimeCall =
 				snowbridge_pallet_ethereum_client::Call::<Runtime>::submit {
 					update: Box::new(*sync_committee_update),
 				}
 				.into();
 
-			let invalid_update_sync_committee_call: <Runtime as pallet_utility::Config>::RuntimeCall =
+			let invalid_update_sync_committee_call: <Runtime as frame_system::Config>::RuntimeCall =
 				snowbridge_pallet_ethereum_client::Call::<Runtime>::submit {
 					update: Box::new(*invalid_sync_committee_update),
 				}
@@ -574,7 +574,7 @@ pub fn ethereum_to_polkadot_message_extrinsics_work<Runtime>(
 	Runtime: frame_system::Config
 		+ pallet_balances::Config
 		+ pallet_session::Config
-		+ pallet_xcm::Config
+		+ pallet_xcm::Config<RuntimeOrigin = <Runtime as frame_system::Config>::RuntimeOrigin>
 		+ pallet_utility::Config
 		+ parachain_info::Config
 		+ pallet_collator_selection::Config
@@ -584,7 +584,7 @@ pub fn ethereum_to_polkadot_message_extrinsics_work<Runtime>(
 		+ snowbridge_pallet_ethereum_client::Config
 		+ pallet_timestamp::Config,
 	ValidatorIdOf<Runtime>: From<AccountIdOf<Runtime>>,
-	<Runtime as pallet_utility::Config>::RuntimeCall:
+	<Runtime as frame_system::Config>::RuntimeCall:
 		From<snowbridge_pallet_ethereum_client::Call<Runtime>>,
 	<Runtime as frame_system::Config>::RuntimeCall: From<pallet_utility::Call<Runtime>>,
 	AccountIdOf<Runtime>: From<AccountId32>,
@@ -612,7 +612,7 @@ pub fn ethereum_to_polkadot_message_extrinsics_work<Runtime>(
 				initial_checkpoint,
 			));
 
-			let update_sync_committee_call: <Runtime as pallet_utility::Config>::RuntimeCall =
+			let update_sync_committee_call: <Runtime as frame_system::Config>::RuntimeCall =
 				snowbridge_pallet_ethereum_client::Call::<Runtime>::submit {
 					update: Box::new(*sync_committee_update),
 				}

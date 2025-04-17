@@ -29,7 +29,7 @@ const SEED: u32 = 0;
 fn setup_multi<T: Config>(
 	s: u32,
 	z: u32,
-) -> Result<(Vec<T::AccountId>, Box<<T as Config>::RuntimeCall>), &'static str> {
+) -> Result<(Vec<T::AccountId>, Box<<T as frame_system::Config>::RuntimeCall>), &'static str> {
 	let mut signatories: Vec<T::AccountId> = Vec::new();
 	for i in 0..s {
 		let signatory = account("signatory", i, SEED);
@@ -40,7 +40,7 @@ fn setup_multi<T: Config>(
 	}
 	signatories.sort();
 	// Must first convert to runtime call type.
-	let call: <T as Config>::RuntimeCall =
+	let call: <T as frame_system::Config>::RuntimeCall =
 		frame_system::Call::<T>::remark { remark: vec![0; z as usize] }.into();
 	Ok((signatories, Box::new(call)))
 }
@@ -54,7 +54,7 @@ mod benchmarks {
 	fn as_multi_threshold_1(z: Linear<0, 10_000>) -> Result<(), BenchmarkError> {
 		let max_signatories = T::MaxSignatories::get().into();
 		let (mut signatories, _) = setup_multi::<T>(max_signatories, z)?;
-		let call: <T as Config>::RuntimeCall =
+		let call: <T as frame_system::Config>::RuntimeCall =
 			frame_system::Call::<T>::remark { remark: vec![0; z as usize] }.into();
 		let caller = signatories.pop().ok_or("signatories should have len 2 or more")?;
 		// Whitelist caller account from further DB operations.

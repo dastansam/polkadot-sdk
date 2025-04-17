@@ -73,6 +73,11 @@ fn send_assets_from_penpal_westend_through_westend_ah_to_rococo_ah(
 		let sov_penpal_on_ahw = AssetHubWestend::sovereign_account_id_of(
 			AssetHubWestend::sibling_location_of(PenpalB::para_id()),
 		);
+		let sov_ahr_on_ahw =
+			AssetHubWestend::sovereign_account_of_parachain_on_other_global_consensus(
+				ByGenesis(ROCOCO_GENESIS_HASH),
+				AssetHubRococo::para_id(),
+			);
 		// send message over bridge
 		assert_ok!(PenpalB::execute_with(|| {
 			let signed_origin = <PenpalB as Chain>::RuntimeOrigin::signed(PenpalBSender::get());
@@ -101,7 +106,7 @@ fn send_assets_from_penpal_westend_through_westend_ah_to_rococo_ah(
 					},
 					// Amount deposited in AHR's sovereign account
 					RuntimeEvent::Balances(pallet_balances::Event::Minted { who, .. }) => {
-						who: *who == TreasuryAccount::get(),
+						who: *who == sov_ahr_on_ahw.clone().into(),
 					},
 					RuntimeEvent::XcmpQueue(
 						cumulus_pallet_xcmp_queue::Event::XcmpMessageSent { .. }
@@ -390,7 +395,7 @@ fn send_wnds_from_penpal_westend_through_asset_hub_westend_to_asset_hub_rococo()
 			vec![
 				// issue WNDs on AHR
 				RuntimeEvent::ForeignAssets(pallet_assets::Event::Issued { asset_id, owner, .. }) => {
-					asset_id: *asset_id == wnd_at_asset_hub_rococo.clone(),
+					asset_id: *asset_id == wnd_at_westend_parachains.clone(),
 					owner: owner == &receiver,
 				},
 				// message processed successfully
@@ -1224,7 +1229,6 @@ fn do_send_pens_and_wnds_from_penpal_westend_via_ahw_to_asset_hub_rococo(
 				ByGenesis(ROCOCO_GENESIS_HASH),
 				AssetHubRococo::para_id(),
 			);
-		let ahw_fee_amount = 100_000_000_000;
 		// send message over bridge
 		assert_ok!(PenpalB::execute_with(|| {
 			let destination = asset_hub_rococo_location();
@@ -1242,6 +1246,7 @@ fn do_send_pens_and_wnds_from_penpal_westend_via_ahw_to_asset_hub_rococo(
 			// use 100_000_000_000 WNDs in fees on AHW
 			// (exec fees: 3_593_000_000, transpo fees: 69_021_561_290 = 72_614_561_290)
 			// TODO: make this exact once we have bridge dry-running
+			let ahw_fee_amount = 100_000_000_000;
 
 			// XCM to be executed at dest (Rococo Asset Hub)
 			let xcm_on_dest = Xcm(vec![
@@ -1317,7 +1322,7 @@ fn do_send_pens_and_wnds_from_penpal_westend_via_ahw_to_asset_hub_rococo(
 						pallet_balances::Event::Burned { who, amount }
 					) => {
 						who: *who == sov_penpal_on_ahw.clone().into(),
-						amount: *amount == ahw_fee_amount,
+						amount: *amount == wnds_amount,
 					},
 					// Amount deposited in AHR's sovereign account
 					RuntimeEvent::Balances(pallet_balances::Event::Minted { who, .. }) => {
@@ -1439,7 +1444,6 @@ fn send_pens_and_wnds_from_penpal_westend_via_ahw_to_ahr() {
 		(pens_location_on_penpal.try_into().unwrap(), pens_to_send),
 	);
 
-	let wnd = Location::new(2, [GlobalConsensus(ByGenesis(WESTEND_GENESIS_HASH))]);
 	AssetHubRococo::execute_with(|| {
 		type RuntimeEvent = <AssetHubRococo as Chain>::RuntimeEvent;
 		assert_expected_events!(
@@ -1447,7 +1451,7 @@ fn send_pens_and_wnds_from_penpal_westend_via_ahw_to_ahr() {
 			vec![
 				// issue WNDs on AHR
 				RuntimeEvent::ForeignAssets(pallet_assets::Event::Issued { asset_id, owner, .. }) => {
-					asset_id: *asset_id == wnd,
+					asset_id: *asset_id == wnd_at_westend_parachains.clone().try_into().unwrap(),
 					owner: *owner == AssetHubRococoReceiver::get(),
 				},
 				// message processed successfully

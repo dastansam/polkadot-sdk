@@ -58,9 +58,8 @@ mod benchmarks {
 		<T::OnChargeTransaction as OnChargeTransaction<T>>::endow_account(&caller, amount_to_endow);
 
 		let ext: ChargeTransactionPayment<T> = ChargeTransactionPayment::from(tip);
-		let inner = frame_system::Call::remark { remark: alloc::vec![] };
-		let call = T::RuntimeCall::from(inner);
-		let extension_weight = ext.weight(&call);
+		let call = frame_system::Call::remark { remark: alloc::vec![] };
+		let extension_weight = ext.weight(&call.clone().into());
 		let info = DispatchInfo {
 			call_weight: Weight::from_parts(100, 0),
 			extension_weight,
@@ -75,9 +74,14 @@ mod benchmarks {
 		#[block]
 		{
 			assert!(ext
-				.test_run(RawOrigin::Signed(caller.clone()).into(), &call, &info, 10, 0, |_| Ok(
-					post_info
-				))
+				.test_run(
+					RawOrigin::Signed(caller.clone()).into(),
+					&call.into(),
+					&info,
+					10,
+					0,
+					|_| Ok(post_info)
+				)
 				.unwrap()
 				.is_ok());
 		}

@@ -263,11 +263,12 @@ impl<T: Config> ProvingTrie<T> {
 					let res =
 						(key_id, key).using_encoded(|k| i.using_encoded(|v| trie.insert(k, v)));
 
-					res.map_err(|_| "failed to insert into trie")?;
+					let _ = res.map_err(|_| "failed to insert into trie")?;
 				}
 
 				// map each owner index to the full identification.
-				i.using_encoded(|k| full_id.using_encoded(|v| trie.insert(k, v)))
+				let _ = i
+					.using_encoded(|k| full_id.using_encoded(|v| trie.insert(k, v)))
 					.map_err(|_| "failed to insert into trie")?;
 			}
 		}

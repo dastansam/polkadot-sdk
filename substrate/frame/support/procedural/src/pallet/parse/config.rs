@@ -293,6 +293,16 @@ fn check_event_type(
 	Ok(true)
 }
 
+/// Check if trait item is `type RuntimeCall`
+fn check_runtime_call(trait_item: &syn::TraitItem) -> bool {
+	let syn::TraitItem::Type(type_) = trait_item else { return false };
+
+	if type_.ident != "RuntimeCall" {
+		return false
+	}
+	true
+}
+
 /// Check that the path to `frame_system::Config` is valid, this is that the path is just
 /// `frame_system::Config` or when using the `frame` crate it is
 /// `polkadot_sdk_frame::xyz::frame_system::Config`.
@@ -415,6 +425,7 @@ impl ConfigDef {
 		};
 		for trait_item in &mut item.items {
 			let is_event = check_event_type(frame_system, trait_item, has_instance)?;
+			let is_runtime_call = check_runtime_call(trait_item);
 
 			let mut already_no_default = false;
 			let mut already_constant = false;
@@ -422,21 +433,33 @@ impl ConfigDef {
 			let mut already_collected_associated_type = None;
 
 			// add deprecation notice for `RuntimeEvent`, iff pallet is not `frame_system`
-			if is_event && !is_frame_system {
-				if let syn::TraitItem::Type(type_event) = trait_item {
+			if !is_frame_system {
+				if let syn::TraitItem::Type(trait_item) = trait_item {
 					let allow_dep: syn::Attribute = parse_quote!(#[allow(deprecated)]);
+					if !trait_item.attrs.iter().any(|attr| attr == &allow_dep) {
+						if is_event {
+							// Check if the `#[allow(deprecated)]` attribute is present
+							let warning = Warning::new_deprecated("RuntimeEvent")
+							.old("have `RuntimeEvent` associated type in the pallet config")
+							.new("remove it as it is redundant since associated bound gets appended automatically: \n
+								pub trait Config: frame_system::Config<RuntimeEvent: From<Event<Self>>> { }")
+							.help_link("https://github.com/paritytech/polkadot-sdk/pull/7229")
+							.span(trait_item.ident.span())
+							.build_or_panic();
 
-					// Check if the `#[allow(deprecated)]` attribute is present
-					if !type_event.attrs.iter().any(|attr| attr == &allow_dep) {
-						let warning = Warning::new_deprecated("RuntimeEvent")
-						.old("have `RuntimeEvent` associated type in the pallet config")
-						.new("remove it as it is redundant since associated bound gets appended automatically: \n
-							pub trait Config: frame_system::Config<RuntimeEvent: From<Event<Self>>> { }")
-						.help_link("https://github.com/paritytech/polkadot-sdk/pull/7229")
-						.span(type_event.ident.span())
-						.build_or_panic();
+							warnings.push(warning);
+						}
+						if is_runtime_call {
+							let warning = Warning::new_deprecated("RuntimeCall")
+							.old("have `RuntimeCall` associated type in the pallet config")
+							.new("use `frame_system::Config::RuntimeCall` directly or define associated bounds: \n
+								pub trait Config: frame_system::Config<RuntimeCall: From<Call<Self>>> { }")
+							.help_link("https://github.com/paritytech/polkadot-sdk/pull/7229")
+							.span(trait_item.ident.span())
+							.build_or_panic();
 
-						warnings.push(warning);
+							warnings.push(warning);
+						}
 					}
 				}
 			}
@@ -726,5 +749,23 @@ mod tests {
 		let frame_system = syn::parse2::<syn::Path>(quote::quote!(something)).unwrap();
 		let path = syn::parse2::<syn::Path>(quote::quote!(something::Config)).unwrap();
 		assert!(!has_expected_system_config(path, &frame_system));
+	}
+
+	#[test]
+	fn check_runtime_call_works() {
+		let trait_item = syn::parse2::<syn::TraitItem>(quote::quote!(type RuntimeCall: From<Call<Self>>;)).unwrap();
+		assert!(check_runtime_call(&trait_item));
+	}
+
+	#[test]
+	fn check_runtime_call_invalid_name() {
+		let trait_item = syn::parse2::<syn::TraitItem>(quote::quote!{type RuntimeCalls: From<Call<Self>>;}).unwrap();
+		assert!(!check_runtime_call(&trait_item));
+	}
+
+	#[test]
+	fn check_runtime_call_invalid_type() {
+		let trait_item = syn::parse2::<syn::TraitItem>(quote::quote!{const RuntimeCall: u32;}).unwrap();
+		assert!(!check_runtime_call(&trait_item));
 	}
 }

@@ -65,6 +65,11 @@ fn send_assets_from_penpal_rococo_through_rococo_ah_to_westend_ah(
 		let sov_penpal_on_ahr = AssetHubRococo::sovereign_account_id_of(
 			AssetHubRococo::sibling_location_of(PenpalA::para_id()),
 		);
+		let sov_ahw_on_ahr =
+			AssetHubRococo::sovereign_account_of_parachain_on_other_global_consensus(
+				ByGenesis(WESTEND_GENESIS_HASH),
+				AssetHubWestend::para_id(),
+			);
 		// send message over bridge
 		assert_ok!(PenpalA::execute_with(|| {
 			let signed_origin = <PenpalA as Chain>::RuntimeOrigin::signed(PenpalASender::get());
@@ -93,7 +98,7 @@ fn send_assets_from_penpal_rococo_through_rococo_ah_to_westend_ah(
 					},
 					// Amount deposited in AHW's sovereign account
 					RuntimeEvent::Balances(pallet_balances::Event::Minted { who, .. }) => {
-						who: *who == TreasuryAccount::get(),
+						who: *who == sov_ahw_on_ahr.clone().into(),
 					},
 					RuntimeEvent::XcmpQueue(
 						cumulus_pallet_xcmp_queue::Event::XcmpMessageSent { .. }
@@ -135,7 +140,6 @@ fn send_roc_from_asset_hub_rococo_to_asset_hub_westend() {
 	});
 
 	// verify expected events on final destination
-	let roc = Location::new(2, [GlobalConsensus(ByGenesis(ROCOCO_GENESIS_HASH))]);
 	AssetHubWestend::execute_with(|| {
 		type RuntimeEvent = <AssetHubWestend as Chain>::RuntimeEvent;
 		assert_expected_events!(
@@ -143,7 +147,7 @@ fn send_roc_from_asset_hub_rococo_to_asset_hub_westend() {
 			vec![
 				// issue ROCs on AHW
 				RuntimeEvent::ForeignAssets(pallet_assets::Event::Issued { asset_id, owner, .. }) => {
-					asset_id: *asset_id == roc,
+					asset_id: *asset_id == roc_at_asset_hub_rococo,
 					owner: owner == &receiver,
 				},
 				// message processed successfully
@@ -384,7 +388,6 @@ fn send_rocs_from_penpal_rococo_through_asset_hub_rococo_to_asset_hub_westend() 
 	}
 
 	// process AHW incoming message and check events
-	let roc = Location::new(2, [GlobalConsensus(ByGenesis(ROCOCO_GENESIS_HASH))]);
 	AssetHubWestend::execute_with(|| {
 		type RuntimeEvent = <AssetHubWestend as Chain>::RuntimeEvent;
 		assert_expected_events!(
@@ -392,7 +395,7 @@ fn send_rocs_from_penpal_rococo_through_asset_hub_rococo_to_asset_hub_westend() 
 			vec![
 				// issue ROCs on AHW
 				RuntimeEvent::ForeignAssets(pallet_assets::Event::Issued { asset_id, owner, .. }) => {
-					asset_id: *asset_id == roc,
+					asset_id: *asset_id == roc_at_rococo_parachains.clone(),
 					owner: owner == &receiver,
 				},
 				// message processed successfully

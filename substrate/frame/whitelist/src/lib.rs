@@ -57,12 +57,17 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config:
+		frame_system::Config<
+		RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>,
+	>
+	{
 		/// The overarching event type.
 		#[allow(deprecated)]
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The overarching call type.
+		#[allow(deprecated)]
 		type RuntimeCall: IsType<<Self as frame_system::Config>::RuntimeCall>
 			+ Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
 			+ GetDispatchInfo
@@ -195,7 +200,7 @@ pub mod pallet {
 		})]
 		pub fn dispatch_whitelisted_call_with_preimage(
 			origin: OriginFor<T>,
-			call: Box<<T as Config>::RuntimeCall>,
+			call: Box<<T as frame_system::Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
 			T::DispatchWhitelistedOrigin::ensure_origin(origin)?;
 
@@ -220,7 +225,10 @@ impl<T: Config> Pallet<T> {
 	/// Clean whitelisting/preimage and dispatch call.
 	///
 	/// Return the call actual weight of the dispatched call if there is some.
-	fn clean_and_dispatch(call_hash: T::Hash, call: <T as Config>::RuntimeCall) -> Option<Weight> {
+	fn clean_and_dispatch(
+		call_hash: T::Hash,
+		call: <T as frame_system::Config>::RuntimeCall,
+	) -> Option<Weight> {
 		WhitelistedCall::<T>::remove(call_hash);
 
 		T::Preimages::unrequest(&call_hash);
